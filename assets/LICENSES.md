@@ -10,8 +10,9 @@ Project source: see root `LICENSE` (MIT unless otherwise noted).
 
 ## Symbols & art (v1)
 
-- Symbol icons, desert background, and cabinet frame art in `apps/client/public/assets/` were generated with **xAI Imagine** for this project (original assets).
+- Symbol icons, desert background, cabinet frame, free-games splash, and Supercoin wheel art in `apps/client/public/assets/` were generated with **xAI Imagine** for this project (original assets).
 - Reel chrome, masks, motion blur, and layout are code-driven in PixiJS (`apps/client/src/reel-view.ts`).
+- SFX are synthesized in-browser via Web Audio (`apps/client/src/audio.ts`) — no third-party sample packs.
 
 ## Future third-party packs
 

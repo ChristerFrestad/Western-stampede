@@ -266,6 +266,130 @@
  #toast.show {
  opacity: 1;
  }
+ /* Feature overlays */
+ #fx-layer {
+ position: fixed;
+ inset: 0;
+ z-index: 60;
+ display: none;
+ align-items: center;
+ justify-content: center;
+ pointer-events: none;
+ }
+ #fx-layer.show {
+ display: flex;
+ }
+ .fx-splash {
+ width: 100%;
+ height: 100%;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ background: radial-gradient(ellipse at center, #0008 0%, #000d 70%);
+ animation: fx-fade-in 0.25s ease-out;
+ }
+ .fx-splash.free {
+ background:
+ linear-gradient(180deg, #000a, #000c),
+ url('/assets/ui/free-games-splash.jpg') center/cover no-repeat;
+ }
+ .fx-splash.stampede {
+ background: radial-gradient(circle at 50% 40%, #5a2a10cc, #000e);
+ }
+ .fx-splash.wheel {
+ background: radial-gradient(circle at 50% 45%, #3a2818ee, #000f);
+ }
+ .fx-card {
+ text-align: center;
+ padding: 1.5rem 2rem;
+ border-radius: 18px;
+ border: 2px solid #e8b84a99;
+ background: #120c08ee;
+ box-shadow: 0 20px 80px #000c, 0 0 40px #e8b84a33;
+ max-width: min(92vw, 560px);
+ }
+ .fx-card.wheel-card {
+ max-width: min(94vw, 420px);
+ }
+ .fx-kicker {
+ font-size: 0.75rem;
+ letter-spacing: 0.2em;
+ color: #d4b896;
+ margin-bottom: 0.4rem;
+ }
+ .fx-title {
+ font-family: 'Bebas Neue', sans-serif;
+ font-size: clamp(2rem, 6vw, 3.2rem);
+ color: #f0c860;
+ letter-spacing: 0.06em;
+ text-shadow: 0 4px 20px #e8b84a66;
+ }
+ .fx-sub {
+ margin-top: 0.6rem;
+ color: #d4b896;
+ font-size: 1rem;
+ }
+ .wheel-stage {
+ position: relative;
+ width: min(72vw, 300px);
+ height: min(72vw, 300px);
+ margin: 1rem auto 0.5rem;
+ }
+ .wheel-disc {
+ width: 100%;
+ height: 100%;
+ border-radius: 50%;
+ overflow: hidden;
+ border: 4px solid #e8b84a;
+ box-shadow: 0 0 30px #e8b84a55, inset 0 0 20px #000a;
+ position: relative;
+ }
+ .wheel-disc img {
+ width: 100%;
+ height: 100%;
+ object-fit: cover;
+ display: block;
+ }
+ .wheel-pointer {
+ position: absolute;
+ top: -8px;
+ left: 50%;
+ transform: translateX(-50%);
+ width: 0;
+ height: 0;
+ border-left: 12px solid transparent;
+ border-right: 12px solid transparent;
+ border-top: 22px solid #f0c860;
+ z-index: 2;
+ filter: drop-shadow(0 2px 4px #000a);
+ }
+ .wheel-labels {
+ position: absolute;
+ inset: 0;
+ pointer-events: none;
+ }
+ .wheel-labels span {
+ position: absolute;
+ left: 50%;
+ top: 50%;
+ width: 2.2rem;
+ margin-left: -1.1rem;
+ margin-top: -0.7rem;
+ text-align: center;
+ font-family: 'Bebas Neue', sans-serif;
+ font-size: 1.05rem;
+ color: #fff8d0;
+ text-shadow: 0 1px 3px #000;
+ transform: rotate(var(--r)) translateY(-112px) rotate(calc(-1 * var(--r)));
+ }
+ @keyframes fx-fade-in {
+ from { opacity: 0; transform: scale(1.03); }
+ to { opacity: 1; transform: scale(1); }
+ }
+ @media (max-width: 640px) {
+ footer { gap: 0.35rem; padding: 0.5rem; }
+ .btn-spin { min-width: 100px; font-size: 1.2rem; }
+ }
  </style>
  </head>
  <body>
@@ -316,6 +440,7 @@
  <button class="btn-buy" id="btn-buy" type="button">BUY BONUS</button>
  <button class="btn-topup" id="btn-topup" type="button">TOP UP</button>
  <button class="btn-secondary" id="btn-rules" type="button">RULES</button>
+ <button class="btn-secondary" id="btn-mute" type="button">SOUND</button>
  </footer>
  </div>
  <div id="toast"></div>
