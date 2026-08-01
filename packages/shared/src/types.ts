@@ -81,8 +81,13 @@ export interface SpinFeatures {
  stampede: boolean;
  supercoin: SupercoinResult | null;
  buyTier: BuyTier | null;
+ /** Natural scatter entry into free games. */
  enteredFreeGames: boolean;
+ /** Buy bonus purchased this spin (starts free session). */
+ buyEntered: boolean;
  freeGamesEnded: boolean;
+ /** Bet locked for the active free-game session (if any). */
+ sessionBet: number | null;
 }
 
 export interface SpinRequest {

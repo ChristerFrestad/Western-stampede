@@ -83,12 +83,27 @@ export class GameService {
  throw new Error('INSUFFICIENT_FUNDS');
  }
 
- const out = await this.engine.spin({
+ if (freeSession && freeSession.remaining > 0) {
+ // Migrate legacy sessions missing sessionBet
+ if (freeSession.sessionBet == null) {
+ freeSession.sessionBet = req.bet;
+ }
+ if (req.bet !== freeSession.sessionBet) {
+ throw new Error('BET_LOCKED');
+ }
+ }
+
+ let out;
+ try {
+ out = await this.engine.spin({
  bet: req.bet,
  mode: freeSession ? 'FREE' : 'BASE',
  freeSession,
  buyTier: req.buyTier as BuyTier | undefined,
  });
+ } catch (e) {
+ throw e instanceof Error ? e : new Error('SPIN_FAILED');
+ }
 
  const roundId = randomUUID();
  if (out.debitAmount > 0) {

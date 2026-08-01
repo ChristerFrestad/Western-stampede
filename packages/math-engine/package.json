@@ -14,7 +14,8 @@
  "scripts": {
  "build": "tsc -p tsconfig.json",
  "test": "node --import tsx --test src/**/*.test.ts",
- "sim": "tsx src/sim/cli.ts"
+ "sim": "tsx src/sim/cli.ts",
+ "sim:buy": "tsx src/sim/buy-cli.ts"
  },
  "dependencies": {
  "@ws/shared": "workspace:*"

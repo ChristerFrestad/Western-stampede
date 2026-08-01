@@ -20,6 +20,8 @@ const el = {
   fgCount: document.getElementById('fg-count')!,
   ways: document.getElementById('ways-label')!,
   premiumInj: document.getElementById('premium-inj')!,
+  featureWin: document.getElementById('feature-win') as HTMLElement | null,
+  featureWinVal: document.getElementById('feature-win-val') as HTMLElement | null,
   banner: document.getElementById('feature-banner')!,
   toast: document.getElementById('toast')!,
   modal: document.getElementById('modal-root')!,
@@ -30,6 +32,9 @@ let config: GameConfigResponse;
 let busy = false;
 let autoplay = false;
 let freeRemaining = 0;
+/** Cumulative wins during the current free/buy feature (client display only). */
+let featureWinSum = 0;
+let inFeature = false;
 
 const reels = new ReelView(el.canvas);
 reels.onSpinStart = () => audio.spinStart();
@@ -48,12 +53,6 @@ function toast(msg: string) {
   el.toast.textContent = msg;
   el.toast.classList.add('show');
   window.setTimeout(() => el.toast.classList.remove('show'), 2200);
-}
-
-function banner(msg: string, ms = 2200) {
-  el.banner.textContent = msg;
-  el.banner.classList.add('show');
-  window.setTimeout(() => el.banner.classList.remove('show'), ms);
 }
 
 function openModal(html: string) {
@@ -95,7 +94,7 @@ function setBusy(v: boolean) {
 
 function updateMeters(result: SpinResult) {
   freeRemaining = result.features.freeGamesRemaining;
-  if (freeRemaining > 0) {
+  if (freeRemaining > 0 || result.features.buyEntered || result.features.enteredFreeGames) {
     el.fgMeter.style.display = 'block';
     el.fgCount.textContent = String(freeRemaining);
   } else {
@@ -106,19 +105,44 @@ function updateMeters(result: SpinResult) {
   el.ways.textContent = ways.toLocaleString();
 
   if (result.features.supercoin) {
-    el.premiumInj.textContent = String(result.features.supercoin.totalLonghornsInjected);
+    el.premiumInj.textContent = String(
+      result.features.supercoin.totalLonghornsInjected,
+    );
+  }
+
+  if (el.featureWin && el.featureWinVal) {
+    if (inFeature || freeRemaining > 0) {
+      el.featureWin.style.display = 'block';
+      el.featureWinVal.textContent = fmt(featureWinSum);
+    } else {
+      el.featureWin.style.display = 'none';
+    }
   }
 }
 
-async function presentFeatures(result: SpinResult) {
-  if (result.features.enteredFreeGames) {
+/**
+ * Feature ceremony order:
+ * buy → intro splash → supercoin wheel (if any) → reels already animated before this for natural;
+ * For buy we may show intro/wheel BEFORE reels (handled in doSpin).
+ */
+async function presentFeaturesAfterSpin(result: SpinResult) {
+  // Natural free-game entry (after trigger spin already shown)
+  if (result.features.enteredFreeGames && !result.features.buyEntered) {
     await showFeatureSplash({
       kind: 'free-games',
       title: `${result.features.freeGamesAwarded} FREE GAMES`,
       subtitle: 'Longhorns are restless — reels stay hot',
       ms: 2600,
     });
-  } else if (result.features.freeGamesAwarded > 0 && result.mode === 'FREE') {
+  }
+
+  // Retrigger during free (not the buy package splash)
+  if (
+    !result.features.buyEntered &&
+    !result.features.enteredFreeGames &&
+    result.features.freeGamesAwarded > 0 &&
+    (result.mode === 'FREE' || result.mode === 'STAMPEDE')
+  ) {
     await showFeatureSplash({
       kind: 'retrigger',
       title: `+${result.features.freeGamesAwarded} FREE GAMES`,
@@ -136,7 +160,8 @@ async function presentFeatures(result: SpinResult) {
     });
   }
 
-  if (result.features.supercoin) {
+  // Supercoin during free (not already shown pre-spin on buy entry)
+  if (result.features.supercoin && !result.features.buyEntered) {
     await showSupercoinWheel(result.features.supercoin);
   }
 
@@ -144,9 +169,12 @@ async function presentFeatures(result: SpinResult) {
     await showFeatureSplash({
       kind: 'free-end',
       title: 'FREE GAMES COMPLETE',
-      subtitle: `Last win meter: ${fmt(result.totalWin)}`,
-      ms: 2000,
+      subtitle: `Feature total: ${fmt(featureWinSum)}`,
+      ms: 2400,
     });
+    featureWinSum = 0;
+    inFeature = false;
+    if (el.featureWin) el.featureWin.style.display = 'none';
   }
 }
 
@@ -156,7 +184,50 @@ async function doSpin(buyTier?: BuyTier) {
   audio.click();
   setBusy(true);
   try {
+    // Buy ceremony: intro (+ wheel) BEFORE reels for the entry response
+    if (buyTier) {
+      const opt = config.buyOptions.find((o) => o.tier === buyTier);
+      const cost = Math.floor(currentBet() * (opt?.costX ?? 80));
+      await showFeatureSplash({
+        kind: 'free-games',
+        title: `BOUGHT ${opt?.freeGames ?? 8} FREE GAMES`,
+        subtitle: `${buyTier.toUpperCase()} · cost ${fmt(cost)}`,
+        ms: 2200,
+      });
+    }
+
     const result = await api.spin(currentBet(), buyTier);
+
+    // Track feature win accumulation
+    if (
+      result.features.buyEntered ||
+      result.features.enteredFreeGames ||
+      result.mode === 'FREE' ||
+      result.mode === 'STAMPEDE' ||
+      freeRemaining > 0
+    ) {
+      if (result.features.buyEntered || result.features.enteredFreeGames) {
+        featureWinSum = 0;
+        inFeature = true;
+      }
+      if (inFeature || result.features.buyEntered || result.mode === 'FREE' || result.mode === 'STAMPEDE') {
+        inFeature = true;
+        // Buy first spin + free spins count; natural trigger spin is base (not in feature pot)
+        if (
+          result.features.buyEntered ||
+          result.mode === 'FREE' ||
+          result.mode === 'STAMPEDE'
+        ) {
+          featureWinSum += result.totalWin;
+        }
+      }
+    }
+
+    // Buy entry supercoin wheel before reels so inject is "felt" narratively after wheel
+    if (result.features.buyEntered && result.features.supercoin) {
+      await showSupercoinWheel(result.features.supercoin);
+    }
+
     await reels.animateSpin(result.grid, result.heights);
     reels.highlightWins(result.wins);
     setBalance(result.balance);
@@ -179,11 +250,17 @@ async function doSpin(buyTier?: BuyTier) {
       }
     }
 
-    await presentFeatures(result);
+    await presentFeaturesAfterSpin(result);
 
     if (result.features.freeGamesRemaining > 0) {
       setBusy(false);
       await sleep(500);
+      // Use session bet for free spins
+      const locked =
+        result.features.sessionBet ?? result.bet ?? currentBet();
+      if (el.bet.querySelector(`option[value="${locked}"]`)) {
+        el.bet.value = String(locked);
+      }
       await doSpin();
       return;
     }
@@ -213,9 +290,9 @@ function showRules() {
       <li>During free games, 2+ scatters retrigger 5 / 8 / 15 / 20 extra.</li>
       <li>Supercoin on reel 1 in free games spins a wheel for extra longhorn symbols.</li>
       <li>Stampede randomly expands middle reels with a guaranteed longhorn line.</li>
-      <li>Buy Bonus: jump into free games for 80× / 150× / 250× bet.</li>
+      <li>Buy Bonus: 22× / 80× / 145× bet for 8 / 15 / 20 free games (same paytable as natural).</li>
     </ul>
-    <p style="color:#c44b2b;font-weight:600">Demo play only — not real-money gambling. Outcomes are server-authoritative with a pluggable RNG.</p>
+    <p style="color:#c44b2b;font-weight:600">Demo play only — not real-money gambling. Outcomes are server-authoritative.</p>
     <div class="modal-actions">
       <button class="btn-spin" type="button" id="close-rules">Got it</button>
     </div>
@@ -229,14 +306,15 @@ function showBuy() {
   const opts = config.buyOptions;
   openModal(`
     <h2>Buy Free Games</h2>
-    <p>Current bet: <strong>${fmt(bet)}</strong></p>
+    <p>Current bet: <strong>${fmt(bet)}</strong>. Same free-game math as natural scatters; higher tiers add Supercoin / Stampede boost.</p>
     <div class="modal-actions" style="flex-direction:column;align-items:stretch">
       ${opts
         .map(
           (o) => `
         <button class="btn-buy" type="button" data-tier="${o.tier}">
           ${o.tier.toUpperCase()} — ${o.freeGames} FG — ${fmt(Math.floor(bet * o.costX))} (${o.costX}×)
-          ${o.supercoinOnEntry ? ' · Supercoin' : ''}
+          ${o.supercoinOnEntry ? ' · Supercoin on entry' : ''}
+          ${o.stampedeWeightBoost > 0 ? ' · Stampede boost' : ''}
         </button>`,
         )
         .join('')}
@@ -304,8 +382,7 @@ async function boot() {
     console.error(e);
   }
 
-  const unlock = () => audio.unlock();
-  window.addEventListener('pointerdown', unlock, { once: true });
+  window.addEventListener('pointerdown', () => audio.unlock(), { once: true });
 
   el.spin.onclick = () => void doSpin();
   el.buy.onclick = () => showBuy();

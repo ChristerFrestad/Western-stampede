@@ -48,9 +48,11 @@ Random feature: expand middle reels and guarantee a longhorn presence on every r
 
 | Tier | Cost | Free games | Extras |
 | --- | --- | --- | --- |
-| standard | 80× bet | 8 | — |
-| enhanced | 150× bet | 15 | Supercoin on entry |
-| premium | 250× bet | 20 | Supercoin + stampede boost |
+| standard | 22× bet | 8 | — |
+| enhanced | 80× bet | 15 | Supercoin on entry |
+| premium | 145× bet | 20 | Supercoin + stampede boost |
+
+Buy uses the same free-game paytable as natural free games. Costs target ~95% buy RTP (see `docs/MATH.md` / `pnpm math:sim:buy`).
 
 ## Demo only
 
