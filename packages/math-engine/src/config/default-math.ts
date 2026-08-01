@@ -7,24 +7,30 @@ import {
  type MathConfigPublic,
  type PaytableEntry,
 } from '@ws/shared';
+import { buildShuffledStrip } from '../strip-build.js';
 
 /**
  * Paytable: multipliers of total bet **per way**.
  * With 3,456 ways, multi-way stacks grow fast — keep per-way values modest.
  * Large headline wins come from multi-way stacks, wild mults, and stampede.
  */
+/**
+ * Per-way pays (× total bet). Tuned for shuffled mini-stack strips (v1.2);
+ * higher than the old clumped-strip table so RTP stays near target without
+ * relying on 14-long low runs to manufacture ways.
+ */
 export const DEFAULT_PAYTABLE: PaytableEntry[] = [
- { symbol: SymbolId.LONGHORN, pays: { 3: 0.16, 4: 0.5, 5: 2.0 } },
- { symbol: SymbolId.STAG, pays: { 3: 0.1, 4: 0.32, 5: 1.2 } },
- { symbol: SymbolId.WOLF, pays: { 3: 0.08, 4: 0.25, 5: 1.0 } },
- { symbol: SymbolId.COYOTE, pays: { 3: 0.065, 4: 0.2, 5: 0.85 } },
- { symbol: SymbolId.EAGLE, pays: { 3: 0.055, 4: 0.16, 5: 0.7 } },
- { symbol: SymbolId.A, pays: { 3: 0.032, 4: 0.1, 5: 0.33 } },
- { symbol: SymbolId.K, pays: { 3: 0.028, 4: 0.08, 5: 0.28 } },
- { symbol: SymbolId.Q, pays: { 3: 0.022, 4: 0.065, 5: 0.24 } },
- { symbol: SymbolId.J, pays: { 3: 0.018, 4: 0.055, 5: 0.2 } },
- { symbol: SymbolId.TEN, pays: { 3: 0.014, 4: 0.045, 5: 0.16 } },
- { symbol: SymbolId.NINE, pays: { 3: 0.011, 4: 0.035, 5: 0.14 } },
+ { symbol: SymbolId.LONGHORN, pays: { 3: 0.22, 4: 0.7, 5: 2.8 } },
+ { symbol: SymbolId.STAG, pays: { 3: 0.14, 4: 0.45, 5: 1.7 } },
+ { symbol: SymbolId.WOLF, pays: { 3: 0.11, 4: 0.35, 5: 1.4 } },
+ { symbol: SymbolId.COYOTE, pays: { 3: 0.09, 4: 0.28, 5: 1.15 } },
+ { symbol: SymbolId.EAGLE, pays: { 3: 0.075, 4: 0.22, 5: 0.95 } },
+ { symbol: SymbolId.A, pays: { 3: 0.045, 4: 0.14, 5: 0.46 } },
+ { symbol: SymbolId.K, pays: { 3: 0.04, 4: 0.11, 5: 0.38 } },
+ { symbol: SymbolId.Q, pays: { 3: 0.032, 4: 0.09, 5: 0.32 } },
+ { symbol: SymbolId.J, pays: { 3: 0.026, 4: 0.075, 5: 0.28 } },
+ { symbol: SymbolId.TEN, pays: { 3: 0.02, 4: 0.06, 5: 0.22 } },
+ { symbol: SymbolId.NINE, pays: { 3: 0.016, 4: 0.05, 5: 0.19 } },
 ];
 
 /**
@@ -67,23 +73,10 @@ export const DEFAULT_FEATURE_WEIGHTS: FeatureWeights = {
 /**
  * Virtual reel strips (stop counts). Tuned for ~95% RTP target via simulator;
  * adjust freely via admin / MathConfig without client changes.
+ *
+ * Built from weighted bags then **deterministically shuffled** so consecutive
+ * strip cells are mixed (not 14×9 then 14×10…). Counts preserved → same hit rates.
  */
-function strip(parts: Array<[SymbolId, number]>): SymbolId[] {
- const out: SymbolId[] = [];
- for (const [sym, n] of parts) {
- for (let i = 0; i < n; i++) out.push(sym);
- }
- return out;
-}
-
-const LOW = [
- [SymbolId.NINE, 8],
- [SymbolId.TEN, 8],
- [SymbolId.J, 7],
- [SymbolId.Q, 7],
- [SymbolId.K, 6],
- [SymbolId.A, 6],
-] as Array<[SymbolId, number]>;
 
 const HIGH = [
  [SymbolId.EAGLE, 5],
@@ -103,60 +96,80 @@ const PAD_LOW: Array<[SymbolId, number]> = [
  [SymbolId.A, 10],
 ];
 
-export const DEFAULT_BASE_STRIPS: SymbolId[][] = [
- strip([
- ...PAD_LOW,
- ...HIGH,
- [SymbolId.SCATTER, 1],
- [SymbolId.SUPERCOIN, 1],
- [SymbolId.LONGHORN, 2],
- ]),
- strip([
- ...PAD_LOW,
- ...HIGH,
- [SymbolId.WILD, 2],
- [SymbolId.SCATTER, 1],
- [SymbolId.LONGHORN, 2],
- ]),
- strip([
- ...PAD_LOW,
- ...HIGH,
- [SymbolId.WILD, 2],
- [SymbolId.SCATTER, 1],
- [SymbolId.LONGHORN, 2],
- ]),
- strip([
- ...PAD_LOW,
- ...HIGH,
- [SymbolId.WILD, 2],
- [SymbolId.SCATTER, 1],
- [SymbolId.LONGHORN, 2],
- ]),
- strip([
- ...PAD_LOW,
- ...HIGH,
- [SymbolId.SCATTER, 1],
- [SymbolId.LONGHORN, 2],
- ]),
+/** Per-reel composition bags (before shuffle). */
+const BASE_BAGS: Array<Array<[SymbolId, number]>> = [
+ [
+  ...PAD_LOW,
+  ...HIGH,
+  [SymbolId.SCATTER, 1],
+  [SymbolId.SUPERCOIN, 1],
+  [SymbolId.LONGHORN, 2],
+ ],
+ [
+  ...PAD_LOW,
+  ...HIGH,
+  [SymbolId.WILD, 2],
+  [SymbolId.SCATTER, 1],
+  [SymbolId.LONGHORN, 2],
+ ],
+ [
+  ...PAD_LOW,
+  ...HIGH,
+  [SymbolId.WILD, 2],
+  [SymbolId.SCATTER, 1],
+  [SymbolId.LONGHORN, 2],
+ ],
+ [
+  ...PAD_LOW,
+  ...HIGH,
+  [SymbolId.WILD, 2],
+  [SymbolId.SCATTER, 1],
+  [SymbolId.LONGHORN, 2],
+ ],
+ [
+  ...PAD_LOW,
+  ...HIGH,
+  [SymbolId.SCATTER, 1],
+  [SymbolId.LONGHORN, 2],
+ ],
 ];
+
+/** Fixed seeds so strip layout is stable across processes (cert-friendly). */
+const BASE_SEEDS = [0x575301, 0x575302, 0x575303, 0x575304, 0x575305];
+
+export const DEFAULT_BASE_STRIPS: SymbolId[][] = BASE_BAGS.map((bag, i) =>
+  // Mini-stacks up to 5 (ways need stacks) but never the old 14-long low bands
+  buildShuffledStrip(bag, BASE_SEEDS[i] ?? 1000 + i, 5, 5),
+);
 
 /**
  * Free-game strips — slightly richer wilds/longhorns, fewer scatters than base
- * so retriggers stay exciting but not infinite.
+ * so retriggers stay exciting but not infinite. Re-shuffled after inject extras.
  */
 export const DEFAULT_FG_STRIPS: SymbolId[][] = DEFAULT_BASE_STRIPS.map((reel, ri) => {
- const filtered: SymbolId[] = reel.filter(
- (s) => s !== SymbolId.SCATTER && s !== SymbolId.SUPERCOIN,
- );
- // sparse scatters for retrigger
- filtered.push(SymbolId.SCATTER);
- if (ri === 0) filtered.push(SymbolId.SUPERCOIN);
- if (ri >= 1 && ri <= 3) {
- filtered.push(SymbolId.WILD_FG, SymbolId.WILD_FG);
- }
- filtered.push(SymbolId.LONGHORN, SymbolId.LONGHORN);
- return filtered;
+  const filtered: SymbolId[] = reel.filter(
+    (s) => s !== SymbolId.SCATTER && s !== SymbolId.SUPERCOIN,
+  );
+  filtered.push(SymbolId.SCATTER);
+  if (ri === 0) filtered.push(SymbolId.SUPERCOIN);
+  if (ri >= 1 && ri <= 3) {
+    filtered.push(SymbolId.WILD_FG, SymbolId.WILD_FG);
+  }
+  filtered.push(SymbolId.LONGHORN, SymbolId.LONGHORN);
+  // Re-mix after appending so we don't leave a LONGHORN/WILD clump at the tail
+  return buildShuffledStrip(
+    countAsParts(filtered),
+    0xf600 + ri * 17,
+    5,
+    5,
+  );
 });
+
+function countAsParts(syms: SymbolId[]): Array<[SymbolId, number]> {
+  const map = new Map<SymbolId, number>();
+  for (const s of syms) map.set(s, (map.get(s) ?? 0) + 1);
+  return [...map.entries()];
+}
 
 export const FREE_GAMES_BY_SCATTER: Record<number, number> = {
  3: 8,
@@ -171,7 +184,7 @@ export const RETRIGGER_BY_SCATTER: Record<number, number> = {
  5: 20,
 };
 
-export const MATH_VERSION = 'western-stampede-1.1.0';
+export const MATH_VERSION = 'western-stampede-1.2.0';
 
 export function buildPublicConfig(demoOnly = true): MathConfigPublic {
  return {

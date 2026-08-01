@@ -11,10 +11,10 @@ import {
   bgTex,
   frameTex,
   loadGameAssets,
-  randomSymbolId,
   tex,
 } from './assets';
 import { buildSpinCadence } from './presentation/spin-timing';
+import { buildSpinFiller, nextSpinSymbol } from './presentation/spin-strip';
 
 /** Cell size inside each reel window. */
 const CELL_W = 118;
@@ -23,7 +23,7 @@ const REEL_GAP = 8;
 const PAD = 4;
 
 /** Extra symbols above the final stop window for the spin strip. */
-const SPIN_FILLER = 28;
+const SPIN_FILLER = 40;
 
 type ReelState = {
   root: Container;
@@ -512,11 +512,8 @@ export class ReelView {
     reel.cells = [];
     reel.frames = [];
 
-    // Longer strip for continuous loop + final window at end
-    const stripSyms: SymbolId[] = [];
-    for (let i = 0; i < SPIN_FILLER; i++) {
-      stripSyms.push(randomSymbolId());
-    }
+    // Mixed weighted filler (anti-run) — never 9999…JJJJ blocks
+    const stripSyms: SymbolId[] = buildSpinFiller(SPIN_FILLER, { maxRun: 2 });
     if (nearMissScatter) {
       stripSyms[SPIN_FILLER - 2] = 'SCATTER' as SymbolId;
       stripSyms[SPIN_FILLER - 1] = 'SCATTER' as SymbolId;
@@ -532,8 +529,9 @@ export class ReelView {
       reel.cells.push(sprite);
       reel.frames.push(frame);
     }
-    reel.strip.y = 0;
-    reel.spinOffset = 0;
+    // Per-reel phase so reels don't scroll in lockstep
+    reel.spinOffset = Math.floor(Math.random() * SPIN_FILLER) * CELL_H * 0.37;
+    reel.strip.y = -reel.spinOffset;
   }
 
   private startContinuousSpin(reelIndex: number) {
@@ -546,20 +544,55 @@ export class ReelView {
     reel.strip.filters = [reel.blur];
 
     const loopLen = SPIN_FILLER * CELL_H;
-    const speed = 42; // px per frame-ish via time delta
+    // Slight speed variance per reel so motion desyncs
+    const speed = 38 + reelIndex * 3 + Math.random() * 4;
 
     let last = performance.now();
+    let lastCell = Math.floor(reel.spinOffset / CELL_H);
     const tick = () => {
       if (!reel.spinning) return;
       const now = performance.now();
       const dt = Math.min(32, now - last);
       last = now;
+      const prev = reel.spinOffset;
       reel.spinOffset = (reel.spinOffset + speed * (dt / 16)) % loopLen;
-      // Scroll through filler only (not into final yet)
+      // Full wrap → re-roll entire filler so pattern never repeats
+      if (reel.spinOffset < prev) {
+        this.rerollFillerSymbols(reel);
+        lastCell = Math.floor(reel.spinOffset / CELL_H);
+      } else {
+        // Cell boundary crossed → re-roll the cell that just went off-screen
+        const cell = Math.floor(reel.spinOffset / CELL_H);
+        if (cell !== lastCell) {
+          const left = (lastCell + SPIN_FILLER) % SPIN_FILLER;
+          // Re-randomize the strip index that left the top of the window
+          this.rerollFillerCell(reel, left);
+          lastCell = cell;
+        }
+      }
       reel.strip.y = -reel.spinOffset;
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
+  }
+
+  /** Re-mix all filler cells (indices 0..SPIN_FILLER-1); keep final window intact. */
+  private rerollFillerSymbols(reel: ReelState) {
+    const fresh = buildSpinFiller(SPIN_FILLER, { maxRun: 2 });
+    for (let i = 0; i < SPIN_FILLER; i++) {
+      const spr = reel.cells[i];
+      if (!spr) continue;
+      this.layoutSprite(spr, i * CELL_H, fresh[i]!);
+    }
+  }
+
+  private rerollFillerCell(reel: ReelState, index: number) {
+    if (index < 0 || index >= SPIN_FILLER) return;
+    const spr = reel.cells[index];
+    if (!spr) return;
+    const prevId = (spr as Sprite & { symbolId?: string }).symbolId ?? null;
+    const next = nextSpinSymbol(prevId as SymbolId | null, { maxRun: 2 });
+    this.layoutSprite(spr, index * CELL_H, next);
   }
 
   private async stopReel(
@@ -940,6 +973,42 @@ export class ReelView {
         g.clear();
       }
     }, 55);
+  }
+
+  /** All LONGHORN cells currently on the visible grid. */
+  longhornCells(): { reel: number; row: number }[] {
+    const out: { reel: number; row: number }[] = [];
+    for (let r = 0; r < this.reels.length; r++) {
+      const reel = this.reels[r]!;
+      for (let row = 0; row < reel.cells.length; row++) {
+        const id = (reel.cells[row] as Sprite & { symbolId?: string }).symbolId;
+        if (id === 'LONGHORN') out.push({ reel: r, row });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Spotlight every Longhorn on the board — used after Supercoin inject
+   * and on Stampede so players see the premium herd is real.
+   */
+  async pulseLonghorns(ms = 1400): Promise<void> {
+    const cells = this.longhornCells();
+    if (!cells.length) {
+      this.pulseBoard(10);
+      await sleep(ms * 0.5);
+      return;
+    }
+    this.dimExcept(cells);
+    await this.playWinCells(cells, ms);
+    // Soft reset dims without killing wild badges mid-ceremony
+    for (const reel of this.reels) {
+      for (const spr of reel.cells) {
+        spr.alpha = 1;
+        spr.tint = 0xffffff;
+      }
+    }
+    this.fxLayer.removeChildren();
   }
 
   private clearWinGlow() {

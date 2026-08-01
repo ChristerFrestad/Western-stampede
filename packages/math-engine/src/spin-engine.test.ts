@@ -45,6 +45,18 @@ describe('SpinEngine free games & buy', () => {
     assert.equal(out.result.bet, 100);
   });
 
+  it('exposes longhornHerd and longhornsOnGrid on free results', async () => {
+    const engine = new SpinEngine(defaultInternalMath(), new SeededPrng(11));
+    const out = await engine.spin({
+      bet: 100,
+      mode: 'BASE',
+      buyTier: 'enhanced',
+    });
+    assert.ok(out.result.features.longhornHerd > 0);
+    assert.ok(typeof out.result.features.longhornsOnGrid === 'number');
+    assert.ok(out.result.features.longhornsOnGrid >= 0);
+  });
+
   it('enhanced buy applies supercoin inject before first spin (longhornInjected > 0)', async () => {
     const engine = new SpinEngine(defaultInternalMath(), new SeededPrng(99));
     const out = await engine.spin({

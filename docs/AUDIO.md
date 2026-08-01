@@ -1,16 +1,19 @@
 # Western Stampede — Audio map
 
-Synthesized Web Audio is the default. Optional sample files may be placed under `apps/client/public/assets/sfx/` (same id + `.ogg` / `.mp3`); the client falls back to synth when a sample is missing.
+Original procedural audio (Web Audio buffers + live layers). Design targets the *feel* of premium western/animal ways cabinets: continuous nature bed while open, mechanical reel clunks, signature premium-animal horn, scatter bell, cascading coins, escalating fanfares, then a resolve hit on total.
+
+Optional sample overrides: `apps/client/public/assets/sfx/{id}.ogg|mp3|wav` (CC0 only — list in `assets/LICENSES.md`). Never ship ripped commercial game audio.
 
 ## Buses
 
 | Bus | Role | Default level |
 | --- | --- | --- |
-| master | Mute / overall | 0.35 |
-| music | BGM loops | ~−18 dB relative |
-| sfx | One-shots + spin loops | full under master |
+| master | Mute / overall | ~0.42 |
+| ambient | Wind / nature bed (always on after unlock) | continuous |
+| music | Harmonic stem + free/win pulse | ducked on spin/wins |
+| sfx | One-shots + spin rumble | full under master |
 
-Music ducks during spin and big celebrations.
+Ambient + music start on first click/key after load and stay running while the game is open (unless muted).
 
 ## Event map
 

@@ -42,9 +42,11 @@ pnpm math:sim:buy 5000               # buy tier RTP
 - [ ] Non-paying symbols dim during combo  
 - [ ] Anticipation: glow on pending reels + rising SFX when 2 scatters  
 - [ ] Combo pills + BIG/MEGA/SUPER banners when thresholds hit  
-- [ ] Space skips celebration without breaking next spin  
-- [ ] BGM runs after first interaction; mute stops all audio  
+- [ ] Space advances **one** phase: combos → count → tiers → **YOU WON total** → game  
+- [ ] After last mega/super banner, total screen appears before idle  
+- [ ] Ambient wind + music after first click; mute stops all  
 - [ ] Longhorn / scatter / wild land SFX distinct on reel stop  
+- [ ] Reel clunks + coin cascade on wins feel mechanical, not single beeps  
 
 See also [PRESENTATION.md](./PRESENTATION.md) and [AUDIO.md](./AUDIO.md).
 
