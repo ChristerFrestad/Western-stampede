@@ -27,28 +27,32 @@ export const DEFAULT_PAYTABLE: PaytableEntry[] = [
  { symbol: SymbolId.NINE, pays: { 3: 0.011, 4: 0.035, 5: 0.14 } },
 ];
 
+/**
+ * Buy costs calibrated so buy RTP ≈ 95% given current free-game EV
+ * (see `pnpm math:sim:buy`). Spins match natural 3/4/5 scatter packages.
+ */
 export const DEFAULT_BUY_OPTIONS: BuyOption[] = [
- {
- tier: 'standard',
- costX: 80,
- freeGames: 8,
- supercoinOnEntry: false,
- stampedeWeightBoost: 0,
- },
- {
- tier: 'enhanced',
- costX: 150,
- freeGames: 15,
- supercoinOnEntry: true,
- stampedeWeightBoost: 0.02,
- },
- {
- tier: 'premium',
- costX: 250,
- freeGames: 20,
- supercoinOnEntry: true,
- stampedeWeightBoost: 0.05,
- },
+  {
+    tier: 'standard',
+    costX: 22,
+    freeGames: 8,
+    supercoinOnEntry: false,
+    stampedeWeightBoost: 0,
+  },
+  {
+    tier: 'enhanced',
+    costX: 80,
+    freeGames: 15,
+    supercoinOnEntry: true,
+    stampedeWeightBoost: 0.02,
+  },
+  {
+    tier: 'premium',
+    costX: 145,
+    freeGames: 20,
+    supercoinOnEntry: true,
+    stampedeWeightBoost: 0.05,
+  },
 ];
 
 export const DEFAULT_FEATURE_WEIGHTS: FeatureWeights = {
@@ -167,7 +171,7 @@ export const RETRIGGER_BY_SCATTER: Record<number, number> = {
  5: 20,
 };
 
-export const MATH_VERSION = 'western-stampede-1.0.0';
+export const MATH_VERSION = 'western-stampede-1.1.0';
 
 export function buildPublicConfig(demoOnly = true): MathConfigPublic {
  return {

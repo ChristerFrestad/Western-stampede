@@ -1,17 +1,24 @@
-# Math notes — Western Stampede 1.0.0
+# Math notes — Western Stampede 1.1.0
 
 ## Target
 
 - Configured RTP target: **~95%**
-- Empirical sim (seeded, 250k spins): **~92.5%** (within demo tolerance; retune via admin / strip edits)
-- Hit rate: ~7%
-- Free game entry: ~0.7% of all spins (~1 per ~120–140 base spins)
-- Stampede: ~0.19% of spins
+- Empirical base sim (seeded): see `pnpm math:sim`
+- Buy costs calibrated for **~95% buy RTP** from free-game session EV
 
-## Commands
+## Buy balance (policy A)
+
+Same free-game strips/paytable as natural. Costs from session EV:
+
+| Tier | costX | free games | Notes |
+| --- | --- | --- | --- |
+| standard | 22 | 8 | ≈ natural 3 scatters |
+| enhanced | 80 | 15 | Supercoin on entry |
+| premium | 145 | 20 | Supercoin + stampede boost |
 
 ```bash
 pnpm math:sim 1000000
+pnpm math:sim:buy 10000
 ```
 
 ## Tuning knobs

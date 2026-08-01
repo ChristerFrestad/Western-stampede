@@ -10,6 +10,7 @@
     "dev:client": "pnpm --filter @ws/client dev",
     "test": "pnpm -r run test",
     "math:sim": "pnpm --filter @ws/math-engine sim",
+    "math:sim:buy": "pnpm --filter @ws/math-engine sim:buy",
     "lint": "pnpm -r run lint --if-present"
   },
   "engines": {

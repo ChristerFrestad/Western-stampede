@@ -82,7 +82,10 @@ app.post('/api/v1/game/spin', auth, async (req, res) => {
  const status =
  msg === 'INSUFFICIENT_FUNDS'
  ? 402
- : msg === 'INVALID_BET' || msg === 'INVALID_BUY_TIER' || msg === 'FREE_GAMES_ACTIVE'
+ : msg === 'INVALID_BET' ||
+ msg === 'INVALID_BUY_TIER' ||
+ msg === 'FREE_GAMES_ACTIVE' ||
+ msg === 'BET_LOCKED'
  ? 400
  : 500;
  res.status(status).json({ error: msg });
