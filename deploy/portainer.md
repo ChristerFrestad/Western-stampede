@@ -1,39 +1,38 @@
 # Deploy Western Stampede on Portainer
 
-## Prerequisites
+## Stack from Git (recommended)
 
-- Portainer with access to a Docker environment
-- GitHub repo containing this project (or upload stack from compose)
-
-## Option A — Stack from Git
-
-1. In Portainer: **Stacks → Add stack**
+1. Portainer → **Stacks → Add stack**
 2. Build method: **Repository**
-3. Repository URL: your fork/clone of `western-stampede`
-4. Compose path: `deploy/docker-compose.yml`
-5. Environment variables:
+3. **Repository URL:** `https://github.com/ChristerFrestad/Western-stampede`
+4. **Reference / Branch:** `main` (required — do not use `master`)
+5. **Compose path:** `docker-compose.yml`  
+   - Leave default if Portainer defaults to root `docker-compose.yml`  
+   - Do **not** use `deploy/docker-compose.yml` unless your Portainer supports Compose `include`
+6. Authentication: if the repo is private, add a GitHub credential / PAT with `repo` scope
+7. Environment variables (optional overrides):
 
 | Variable | Example | Notes |
 | --- | --- | --- |
 | `JWT_SECRET` | long random string | Required in production |
 | `ADMIN_TOKEN` | long random string | Admin API header `x-admin-token` |
-| `RNG_PROVIDER` | `local` | Later: `external` + certified client |
+| `RNG_PROVIDER` | `local` | Later: certified external RNG |
 | `TOPUP_MODE` | `demo` | Instant credit; later PSP mode |
 | `REAL_MONEY` | `false` | Keep false until licensed |
 | `GUEST_START_BALANCE` | `10000` | Demo credits |
-| `CORS_ORIGIN` | `*` or your domain | |
+| `CORS_ORIGIN` | `*` | Or your domain |
 | `VITE_API_URL` | empty | Leave empty so nginx proxies `/api` |
 
-6. Deploy the stack.
-7. Open `http://<host>:8080` for the game; API on `:3000`.
+8. Deploy the stack  
+9. Open `http://<host>:8080` (game) and `http://<host>:3000/health` (API)
 
-## Option B — Prebuilt images (GHCR)
+## Common errors
 
-Build/push from CI, then replace `build:` sections with:
-
-```yaml
-image: ghcr.io/<org>/western-stampede-rgs:latest
-```
+| Error | Fix |
+| --- | --- |
+| `reference not found` | Branch must be **`main`**, not `master` |
+| `open .../docker-compose.yml: no such file` | Compose path must be **`docker-compose.yml`** at repo root |
+| Clone auth failed | Add Portainer Git credentials for private repos |
 
 ## Health
 
@@ -43,5 +42,5 @@ image: ghcr.io/<org>/western-stampede-rgs:latest
 
 ## Notes
 
-- Current RGS uses **in-memory** sessions/balances (single replica). For multi-replica commercial deploy, swap `MemoryStore` for Postgres (architecture already interface-shaped).
+- RGS uses in-memory sessions (single replica). Swap store for Postgres for multi-node commercial use.
 - Demo mode is intentional until certified RNG + license.

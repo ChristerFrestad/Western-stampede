@@ -1,40 +1,6 @@
-# Western Stampede — Portainer / local Docker stack
-# Deploy: Portainer → Stacks → Repository or paste this compose file.
-# Env: copy ../.env.example values into stack env.
+# Deprecated location — Portainer looks for compose at repo root by default.
+# Use: ../docker-compose.yml
+# Kept so older docs still resolve if compose path is set to deploy/docker-compose.yml
 
-services:
- rgs-api:
- build:
- context: ..
- dockerfile: deploy/Dockerfile.rgs
- environment:
- PORT: 3000
- JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
- RNG_PROVIDER: ${RNG_PROVIDER:-local}
- TOPUP_MODE: ${TOPUP_MODE:-demo}
- GUEST_START_BALANCE: ${GUEST_START_BALANCE:-10000}
- REAL_MONEY: ${REAL_MONEY:-false}
- ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
- CORS_ORIGIN: ${CORS_ORIGIN:-*}
- ports:
- - "3000:3000"
- healthcheck:
- test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
- interval: 15s
- timeout: 5s
- retries: 5
- start_period: 20s
- restart: unless-stopped
-
- client:
- build:
- context: ..
- dockerfile: deploy/Dockerfile.client
- args:
- VITE_API_URL: ${VITE_API_URL:-}
- ports:
- - "8080:80"
- depends_on:
- rgs-api:
- condition: service_healthy
- restart: unless-stopped
+include:
+  - path: ../docker-compose.yml

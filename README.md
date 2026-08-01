@@ -44,11 +44,12 @@ pnpm --filter @ws/math-engine test
 ## Docker / Portainer
 
 ```bash
-cd deploy
+# from repo root
 docker compose up --build
 # UI http://localhost:8080  API http://localhost:3000/health
 ```
 
+Portainer Git deploy: branch **`main`**, compose path **`docker-compose.yml`** (repo root).  
 See [deploy/portainer.md](deploy/portainer.md).
 
 ## API (summary)
