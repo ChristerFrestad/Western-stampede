@@ -1,6 +1,6 @@
 # Western Stampede — Portainer / local Docker stack
-# UI: http://host:${WEB_PORT:-18080}
-# Defaults avoid common host conflicts (3000, 8080).
+# UI: http://host:18080 (or WEB_PORT)
+# API: internal only by default; optional host port RGS_PORT (default 13000)
 
 services:
   rgs-api:
@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: deploy/Dockerfile.rgs
     environment:
-      PORT: 3000
+      PORT: "3000"
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       RNG_PROVIDER: ${RNG_PROVIDER:-local}
       TOPUP_MODE: ${TOPUP_MODE:-demo}
@@ -16,10 +16,9 @@ services:
       REAL_MONEY: ${REAL_MONEY:-false}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
-    # Optional direct API access: set RGS_HOST_PORT (e.g. 13000) in Portainer env.
-    # Leave unset / empty to keep API internal-only (recommended).
+    # Simple host:container mapping — avoids Portainer env parser issues with "ip:port" defaults
     ports:
-      - "${RGS_HOST_PORT:-127.0.0.1:13000}:3000"
+      - "${RGS_PORT:-13000}:3000"
     healthcheck:
       test:
         [
