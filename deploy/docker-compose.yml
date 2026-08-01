@@ -1,5 +1,4 @@
-# Same stack as root docker-compose.yml (for compose path: deploy/docker-compose.yml).
-# Prefer repo-root docker-compose.yml for Portainer defaults.
+# Same stack as root docker-compose.yml (compose path: deploy/docker-compose.yml).
 
 services:
   rgs-api:
@@ -16,7 +15,7 @@ services:
       ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
     ports:
-      - "3000:3000"
+      - "${RGS_HOST_PORT:-127.0.0.1:13000}:3000"
     healthcheck:
       test:
         [
@@ -30,6 +29,8 @@ services:
       retries: 5
       start_period: 40s
     restart: unless-stopped
+    networks:
+      - ws
 
   client:
     build:
@@ -38,8 +39,14 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-}
     ports:
-      - "8080:80"
+      - "${WEB_PORT:-8080}:80"
     depends_on:
       rgs-api:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - ws
+
+networks:
+  ws:
+    driver: bridge

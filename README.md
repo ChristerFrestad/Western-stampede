@@ -46,10 +46,12 @@ pnpm --filter @ws/math-engine test
 ```bash
 # from repo root
 docker compose up --build
-# UI http://localhost:8080  API http://localhost:3000/health
+# UI  http://localhost:8080
+# API http://localhost:8080/health  (proxied) or http://127.0.0.1:13000/health
 ```
 
 Portainer Git deploy: branch **`main`**, compose path **`docker-compose.yml`** (repo root).  
+If host port 8080 is taken, set env `WEB_PORT=18080`.  
 See [deploy/portainer.md](deploy/portainer.md).
 
 ## API (summary)
