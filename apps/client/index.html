@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+ <title>Western Stampede</title>
+ <link rel="preconnect" href="https://fonts.googleapis.com" />
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+ <link
+ href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap"
+ rel="stylesheet"
+ />
+ <style>
+ :root {
+ --bg: #0c0a08;
+ --panel: #1a1410ee;
+ --gold: #e8b84a;
+ --gold-dim: #a67c2a;
+ --sand: #d4b896;
+ --danger: #c44b2b;
+ --ok: #3d9a6a;
+ --text: #f5efe6;
+ --muted: #9a8b78;
+ }
+ * {
+ box-sizing: border-box;
+ margin: 0;
+ padding: 0;
+ }
+ html,
+ body {
+ height: 100%;
+ background: radial-gradient(ellipse at 50% 20%, #2a1f14 0%, var(--bg) 70%);
+ color: var(--text);
+ font-family: 'Outfit', system-ui, sans-serif;
+ overflow: hidden;
+ user-select: none;
+ }
+ #app {
+ display: grid;
+ grid-template-rows: auto 1fr auto;
+ height: 100%;
+ max-width: 1200px;
+ margin: 0 auto;
+ }
+ header {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ padding: 0.6rem 1rem;
+ background: linear-gradient(180deg, #2c2118 0%, transparent 100%);
+ }
+ header h1 {
+ font-family: 'Bebas Neue', sans-serif;
+ font-size: 1.75rem;
+ letter-spacing: 0.08em;
+ color: var(--gold);
+ text-shadow: 0 2px 12px #e8b84a55;
+ }
+ .badge {
+ font-size: 0.7rem;
+ padding: 0.2rem 0.5rem;
+ border: 1px solid var(--gold-dim);
+ border-radius: 999px;
+ color: var(--gold);
+ text-transform: uppercase;
+ letter-spacing: 0.06em;
+ }
+ #stage-wrap {
+ position: relative;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ min-height: 0;
+ padding: 0.5rem;
+ }
+ #game-canvas {
+ width: 100%;
+ max-width: 960px;
+ aspect-ratio: 16 / 10;
+ border-radius: 12px;
+ box-shadow: 0 12px 40px #000a, inset 0 0 0 2px #e8b84a33;
+ background: #1a120c;
+ }
+ #hud {
+ position: absolute;
+ inset: 0;
+ pointer-events: none;
+ display: flex;
+ flex-direction: column;
+ justify-content: space-between;
+ padding: 1rem 1.5rem;
+ max-width: 960px;
+ margin: 0 auto;
+ width: 100%;
+ }
+ #hud .top-row,
+ #hud .win-row {
+ display: flex;
+ justify-content: space-between;
+ gap: 1rem;
+ pointer-events: none;
+ }
+ .meter {
+ background: var(--panel);
+ border: 1px solid #e8b84a44;
+ border-radius: 10px;
+ padding: 0.45rem 0.85rem;
+ min-width: 120px;
+ }
+ .meter label {
+ display: block;
+ font-size: 0.65rem;
+ color: var(--muted);
+ text-transform: uppercase;
+ letter-spacing: 0.08em;
+ }
+ .meter strong {
+ font-family: 'Bebas Neue', sans-serif;
+ font-size: 1.4rem;
+ color: var(--gold);
+ }
+ #feature-banner {
+ align-self: center;
+ background: #c44b2bee;
+ color: white;
+ font-family: 'Bebas Neue', sans-serif;
+ font-size: 1.5rem;
+ letter-spacing: 0.1em;
+ padding: 0.5rem 1.5rem;
+ border-radius: 8px;
+ opacity: 0;
+ transition: opacity 0.25s;
+ pointer-events: none;
+ }
+ #feature-banner.show {
+ opacity: 1;
+ }
+ footer {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 0.6rem;
+ align-items: center;
+ justify-content: center;
+ padding: 0.75rem 1rem 1.25rem;
+ background: linear-gradient(0deg, #1a1410 0%, transparent 100%);
+ }
+ .ctrl {
+ display: flex;
+ align-items: center;
+ gap: 0.4rem;
+ background: var(--panel);
+ border: 1px solid #e8b84a33;
+ border-radius: 12px;
+ padding: 0.4rem 0.6rem;
+ }
+ button {
+ font-family: 'Outfit', sans-serif;
+ font-weight: 700;
+ border: none;
+ cursor: pointer;
+ border-radius: 10px;
+ padding: 0.65rem 1.1rem;
+ transition: transform 0.1s, filter 0.15s;
+ }
+ button:active:not(:disabled) {
+ transform: scale(0.97);
+ }
+ button:disabled {
+ opacity: 0.45;
+ cursor: not-allowed;
+ }
+ .btn-spin {
+ background: linear-gradient(180deg, #f0c860, #c4922a);
+ color: #1a1008;
+ font-family: 'Bebas Neue', sans-serif;
+ font-size: 1.5rem;
+ letter-spacing: 0.12em;
+ min-width: 140px;
+ box-shadow: 0 4px 20px #e8b84a55;
+ }
+ .btn-secondary {
+ background: #2a221a;
+ color: var(--sand);
+ border: 1px solid #e8b84a44;
+ }
+ .btn-buy {
+ background: linear-gradient(180deg, #5a3a8a, #3a2060);
+ color: #f0e8ff;
+ border: 1px solid #a080d0;
+ }
+ .btn-topup {
+ background: linear-gradient(180deg, #3d9a6a, #2a6b4a);
+ color: #e8fff2;
+ }
+ select,
+ input[type='number'] {
+ background: #0c0a08;
+ color: var(--text);
+ border: 1px solid #e8b84a44;
+ border-radius: 8px;
+ padding: 0.45rem 0.6rem;
+ font-family: inherit;
+ }
+ #modal-root {
+ position: fixed;
+ inset: 0;
+ background: #000a;
+ display: none;
+ align-items: center;
+ justify-content: center;
+ z-index: 50;
+ padding: 1rem;
+ }
+ #modal-root.open {
+ display: flex;
+ }
+ .modal {
+ background: #1a1410;
+ border: 1px solid var(--gold-dim);
+ border-radius: 16px;
+ max-width: 480px;
+ width: 100%;
+ padding: 1.5rem;
+ box-shadow: 0 20px 60px #000c;
+ }
+ .modal h2 {
+ font-family: 'Bebas Neue', sans-serif;
+ color: var(--gold);
+ letter-spacing: 0.06em;
+ margin-bottom: 0.75rem;
+ }
+ .modal p,
+ .modal li {
+ color: var(--sand);
+ font-size: 0.9rem;
+ line-height: 1.45;
+ }
+ .modal ul {
+ margin: 0.5rem 0 1rem 1.1rem;
+ }
+ .modal-actions {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 0.5rem;
+ margin-top: 1rem;
+ }
+ #toast {
+ position: fixed;
+ bottom: 5.5rem;
+ left: 50%;
+ transform: translateX(-50%);
+ background: #1a1410ee;
+ border: 1px solid var(--gold);
+ color: var(--gold);
+ padding: 0.6rem 1.2rem;
+ border-radius: 999px;
+ opacity: 0;
+ transition: opacity 0.25s;
+ z-index: 40;
+ pointer-events: none;
+ font-weight: 600;
+ }
+ #toast.show {
+ opacity: 1;
+ }
+ </style>
+ </head>
+ <body>
+ <div id="app">
+ <header>
+ <h1>Western Stampede</h1>
+ <span class="badge" id="demo-badge">Demo play · Not real money</span>
+ </header>
+ <div id="stage-wrap">
+ <canvas id="game-canvas"></canvas>
+ <div id="hud">
+ <div class="top-row">
+ <div class="meter">
+ <label>Balance</label>
+ <strong id="balance">—</strong>
+ </div>
+ <div class="meter" id="fg-meter" style="display: none">
+ <label>Free games</label>
+ <strong id="fg-count">0</strong>
+ </div>
+ <div class="meter">
+ <label>Last win</label>
+ <strong id="last-win">0</strong>
+ </div>
+ </div>
+ <div id="feature-banner"></div>
+ <div class="win-row">
+ <div class="meter">
+ <label>Ways</label>
+ <strong id="ways-label">3,456</strong>
+ </div>
+ <div class="meter">
+ <label>Longhorns injected</label>
+ <strong id="premium-inj">0</strong>
+ </div>
+ </div>
+ </div>
+ </div>
+ <footer>
+ <div class="ctrl">
+ <label for="bet">Bet</label>
+ <select id="bet"></select>
+ </div>
+ <button class="btn-secondary" id="btn-minus" type="button">−</button>
+ <button class="btn-spin" id="btn-spin" type="button">SPIN</button>
+ <button class="btn-secondary" id="btn-plus" type="button">+</button>
+ <button class="btn-secondary" id="btn-auto" type="button">AUTO</button>
+ <button class="btn-buy" id="btn-buy" type="button">BUY BONUS</button>
+ <button class="btn-topup" id="btn-topup" type="button">TOP UP</button>
+ <button class="btn-secondary" id="btn-rules" type="button">RULES</button>
+ </footer>
+ </div>
+ <div id="toast"></div>
+ <div id="modal-root"></div>
+ <script type="module" src="/src/main.ts"></script>
+ </body>
+</html>
