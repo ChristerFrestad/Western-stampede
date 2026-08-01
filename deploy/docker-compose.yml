@@ -6,7 +6,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.rgs
     environment:
-      PORT: 3000
+      PORT: "3000"
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       RNG_PROVIDER: ${RNG_PROVIDER:-local}
       TOPUP_MODE: ${TOPUP_MODE:-demo}
@@ -15,7 +15,7 @@ services:
       ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
     ports:
-      - "${RGS_HOST_PORT:-127.0.0.1:13000}:3000"
+      - "${RGS_PORT:-13000}:3000"
     healthcheck:
       test:
         [

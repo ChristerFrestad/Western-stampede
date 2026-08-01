@@ -51,8 +51,8 @@ docker compose up --build
 ```
 
 Portainer Git deploy: branch **`main`**, compose path **`docker-compose.yml`** (repo root).  
-Default host ports: **18080** (UI), **13000** (API localhost). Override with `WEB_PORT` / `RGS_HOST_PORT` if needed.  
-See [deploy/portainer.md](deploy/portainer.md).
+Default host ports: **18080** (UI), **13000** (API). Override with `WEB_PORT` / `RGS_PORT`.  
+If Portainer says **“failed loading environment”**, the Docker environment is offline — see [deploy/portainer.md](deploy/portainer.md).
 
 ## API (summary)
 
