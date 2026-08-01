@@ -55,6 +55,12 @@ export class ReelView {
   private readyPromise: Promise<void>;
   private winGlow: Graphics | null = null;
   private titleText: Text | null = null;
+  private chromeOuter: Graphics | null = null;
+  private chromeInner: Graphics | null = null;
+  /** Optional hooks for SFX (set by main). */
+  onReelStop: ((reelIndex: number) => void) | null = null;
+  onSpinStart: (() => void) | null = null;
+  onSpinEnd: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.app = new Application();
@@ -84,16 +90,18 @@ export class ReelView {
     this.bgSprite.anchor.set(0.5);
     this.stageRoot.addChild(this.bgSprite);
 
-    // Dim vignette
-    const vignette = new Graphics();
-    this.stageRoot.addChild(vignette);
-    this.stageRoot.addChild(this.board);
+    // Layer order: bg → outer chrome → frame art → board reels → inner chrome → title
+    this.chromeOuter = new Graphics();
+    this.chromeInner = new Graphics();
+    this.stageRoot.addChild(this.chromeOuter);
 
-    // Cabinet frame overlay (decorative)
     this.frameSprite = new Sprite(frameTex());
     this.frameSprite.anchor.set(0.5);
-    this.frameSprite.alpha = 0.92;
+    this.frameSprite.alpha = 0.38;
     this.stageRoot.addChild(this.frameSprite);
+
+    this.stageRoot.addChild(this.board);
+    this.stageRoot.addChild(this.chromeInner);
 
     this.titleText = new Text({
       text: 'WESTERN STAMPEDE',
@@ -142,22 +150,54 @@ export class ReelView {
 
     if (this.frameSprite) {
       this.frameSprite.x = cx;
-      this.frameSprite.y = cy;
-      const fs = Math.min((boardW + 180) / this.frameSprite.texture.width, (boardH + 220) / this.frameSprite.texture.height);
-      this.frameSprite.scale.set(fs * 1.15);
-      this.frameSprite.alpha = 0.55;
+      this.frameSprite.y = cy + 8;
+      const fs = Math.min(
+        (boardW + 220) / this.frameSprite.texture.width,
+        (boardH + 260) / this.frameSprite.texture.height,
+      );
+      this.frameSprite.scale.set(fs * 1.08);
+    }
+
+    // Vector chrome “9-slice” feel: thick outer bezel + gold corners + inner rail
+    const drawChrome = (g: Graphics | null, inflate: number, fillA: number, strokeA: number) => {
+      if (!g) return;
+      g.clear();
+      const x = cx - boardW / 2 - inflate;
+      const y = cy + 8 - boardH / 2 - inflate;
+      const ww = boardW + inflate * 2;
+      const hh = boardH + inflate * 2;
+      g.roundRect(x, y, ww, hh, 22);
+      g.fill({ color: 0x1a1008, alpha: fillA });
+      g.stroke({ color: 0xc9a227, width: 5, alpha: strokeA });
+      g.roundRect(x + 8, y + 8, ww - 16, hh - 16, 16);
+      g.stroke({ color: 0x6a4a18, width: 2, alpha: strokeA * 0.9 });
+      // Corner studs
+      const studs = [
+        [x + 18, y + 18],
+        [x + ww - 18, y + 18],
+        [x + 18, y + hh - 18],
+        [x + ww - 18, y + hh - 18],
+      ];
+      for (const [sx, sy] of studs) {
+        g.circle(sx!, sy!, 5);
+        g.fill({ color: 0xe8c86a, alpha: 0.9 });
+      }
+    };
+    drawChrome(this.chromeOuter, 36, 0.55, 0.95);
+    // Inner chrome is outline-only around board (no fill so reels stay visible)
+    if (this.chromeInner) {
+      this.chromeInner.clear();
+      const x = cx - boardW / 2 - 6;
+      const y = cy + 8 - boardH / 2 - 6;
+      this.chromeInner.roundRect(x, y, boardW + 12, boardH + 12, 14);
+      this.chromeInner.stroke({ color: 0xffe08a, width: 1.5, alpha: 0.55 });
     }
 
     if (this.titleText) {
       this.titleText.x = cx;
-      this.titleText.y = Math.max(28, cy - boardH / 2 - 48);
+      this.titleText.y = Math.max(28, cy - boardH / 2 - 56);
       this.titleText.style.fontSize = Math.min(48, w / 18);
     }
-
-    // Darken edges with a simple overlay rect on stage root
-    // (kept lightweight — bg provides atmosphere)
-    void boardW;
-    void boardH;
   }
 
   layoutBoard(heights: number[], grid: SymbolId[][]) {
@@ -297,6 +337,7 @@ export class ReelView {
     if (this.spinning) return;
     this.spinning = true;
     this.clearWinGlow();
+    this.onSpinStart?.();
 
     if (heights.join(',') !== this.heights.join(',')) {
       this.layoutBoard(heights, grid);
@@ -308,6 +349,7 @@ export class ReelView {
     }
     await Promise.all(jobs);
     this.setGrid(grid, heights);
+    this.onSpinEnd?.();
     this.spinning = false;
   }
 
@@ -368,6 +410,7 @@ export class ReelView {
           reel.strip.y = -travel;
           reel.strip.filters = [];
           this.finalizeReelStrip(reel, finalSymbols);
+          this.onReelStop?.(reelIndex);
           resolve();
         }
       };

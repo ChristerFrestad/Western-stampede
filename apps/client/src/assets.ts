@@ -22,6 +22,8 @@ export const SYMBOL_FILES: Record<string, string> = {
 export const UI_FILES = {
   bg: '/assets/ui/bg-desert.jpg',
   frame: '/assets/ui/cabinet-frame.jpg',
+  wheel: '/assets/ui/supercoin-wheel.jpg',
+  freeSplash: '/assets/ui/free-games-splash.jpg',
 };
 
 const ALL_SYMBOL_IDS = Object.keys(SYMBOL_FILES);
