@@ -1,93 +1,123 @@
 import type { SpinResult, WinDetail } from '@ws/shared';
 import { audio } from '../audio';
 import type { ReelView } from '../reel-view';
-import { countUpElement } from './win-meter';
-
-export interface WinDirectorEls {
-  lastWin: HTMLElement;
-  featureWinVal?: HTMLElement | null;
-  featureWinSum?: number;
-}
 
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
+export interface ReelWinOpts {
+  turbo?: boolean;
+  shouldAbort?: () => boolean;
+}
+
 /**
- * Post-stop presentation: wilds → dim → win cells → meter count-up → tier toast hook.
+ * Animate every paying combination with explainer pills + combo summary.
  */
-export async function runWinDirector(
+export async function runReelWinSequence(
   reels: ReelView,
   result: SpinResult,
-  els: WinDirectorEls,
-  opts?: { turbo?: boolean },
-): Promise<{ tier: 'none' | 'micro' | 'small' | 'big' | 'mega' }> {
+  opts?: ReelWinOpts,
+): Promise<void> {
   const turbo = opts?.turbo ?? false;
   reels.resetPresentation();
 
-  const mult = result.bet > 0 ? result.totalWin / result.bet : 0;
-  let tier: 'none' | 'micro' | 'small' | 'big' | 'mega' = 'none';
-  if (result.totalWin <= 0) {
-    await countUpElement(els.lastWin, 0, 120);
-    return { tier: 'none' };
-  }
-  if (mult >= 20) tier = 'mega';
-  else if (mult >= 5) tier = 'big';
-  else if (mult >= 1) tier = 'small';
-  else tier = 'micro';
+  if (result.totalWin <= 0) return;
 
-  await sleep(turbo ? 80 : 220);
-
-  // 1) Wild land FX (always show mults when present)
+  // Wild land first
   if (result.wildMults?.length) {
-    await reels.playWildLand(result.wildMults, turbo ? 400 : 900);
-    audio.wildLand();
-  }
-
-  // 2) Dim non-winners, light win cells
-  const allCells = collectCells(result.wins);
-  if (allCells.length) {
-    reels.dimExcept(allCells);
-    await reels.playWinCells(allCells, turbo ? 350 : 700);
-    audio.winCycle();
-  } else if (result.wins.length) {
-    // Fallback: highlight by symbol id
-    reels.highlightWins(result.wins);
-  }
-
-  // 3) Cycle win pills (optional short)
-  if (!turbo && result.wins.length > 1) {
-    for (const w of result.wins.slice(0, 3)) {
-      reels.showWinPill(formatWinPill(w));
-      if (w.cells?.length) {
-        reels.dimExcept(w.cells);
-        await reels.playWinCells(w.cells, 500);
-      }
-      await sleep(650);
+    if (opts?.shouldAbort?.()) {
+      /* collapse */
+    } else {
+      await reels.playWildLand(result.wildMults, turbo ? 280 : 750);
+      audio.wildLand();
     }
+  }
+
+  const wins = result.wins;
+  if (!wins.length) {
+    // Paid something without structured wins (shouldn't happen) — pulse board
+    reels.pulseBoard(8);
+    return;
+  }
+
+  // Turbo / abort: one aggregate pulse
+  if (turbo || opts?.shouldAbort?.()) {
+    const all = collectCells(wins);
+    reels.dimExcept(all);
+    await reels.playWinCells(all, 280);
+    audio.winCycle();
+    reels.showWinPill(
+      wins.length > 1
+        ? `${wins.length} combinations · +${result.totalWin.toLocaleString()}`
+        : formatWinPill(wins[0]!),
+    );
+    await sleep(220);
     reels.hideWinPill();
-    if (allCells.length) reels.dimExcept(allCells);
-  } else if (result.wins[0]) {
-    reels.showWinPill(formatWinPill(result.wins[0]!));
-    await sleep(turbo ? 200 : 500);
-    reels.hideWinPill();
+    return;
   }
 
-  // 4) Meter count-up
-  const meterMs = turbo ? 250 : tier === 'mega' ? 1100 : tier === 'big' ? 850 : 550;
-  await countUpElement(els.lastWin, result.totalWin, meterMs);
-  if (els.featureWinVal != null && els.featureWinSum != null && els.featureWinSum > 0) {
-    await countUpElement(els.featureWinVal, els.featureWinSum, meterMs * 0.7);
+  // Full cycle — every win
+  const maxCycle = 8;
+  const list = wins.slice(0, maxCycle);
+  for (const w of list) {
+    if (opts?.shouldAbort?.()) break;
+    const cells = w.cells?.length ? w.cells : [];
+    if (cells.length) {
+      reels.dimExcept(cells);
+      await reels.playWinCells(cells, 520);
+    } else {
+      reels.highlightWins([w]);
+      await sleep(400);
+    }
+    reels.showWinPill(formatWinPill(w));
+    audio.winCycle();
+    await sleep(680);
   }
 
-  // 5) Board pulse by tier
-  if (tier === 'big' || tier === 'mega') {
-    reels.pulseBoard(tier === 'mega' ? 18 : 12);
+  if (wins.length > maxCycle) {
+    reels.showWinPill(`+${wins.length - maxCycle} more combinations`);
+    await sleep(500);
   }
 
-  await sleep(turbo ? 100 : 250);
-  reels.resetPresentation();
-  return { tier };
+  // Combo celebration
+  if (wins.length > 1 && !opts?.shouldAbort?.()) {
+    const all = collectCells(wins);
+    reels.dimExcept(all);
+    reels.showWinPill(
+      `${wins.length} WINNING COMBOS · +${result.totalWin.toLocaleString()}`,
+    );
+    await reels.playWinCells(all, 700);
+    reels.pulseBoard(14);
+    audio.winBig();
+    await sleep(750);
+  }
+
+  reels.hideWinPill();
+}
+
+/** @deprecated use runCelebration — kept for any direct imports */
+export async function runWinDirector(
+  reels: ReelView,
+  result: SpinResult,
+  els: {
+    lastWin: HTMLElement;
+    featureWinVal?: HTMLElement | null;
+    featureWinSum?: number;
+  },
+  opts?: { turbo?: boolean },
+): Promise<{ tier: 'none' | 'micro' | 'small' | 'big' | 'mega' }> {
+  await runReelWinSequence(reels, result, { turbo: opts?.turbo });
+  els.lastWin.textContent = result.totalWin.toLocaleString();
+  if (els.featureWinVal && els.featureWinSum != null) {
+    els.featureWinVal.textContent = els.featureWinSum.toLocaleString();
+  }
+  const mult = result.bet > 0 ? result.totalWin / result.bet : 0;
+  if (mult >= 20) return { tier: 'mega' };
+  if (mult >= 5) return { tier: 'big' };
+  if (mult >= 1) return { tier: 'small' };
+  if (mult > 0) return { tier: 'micro' };
+  return { tier: 'none' };
 }
 
 function collectCells(wins: WinDetail[]): { reel: number; row: number }[] {
@@ -106,7 +136,6 @@ function collectCells(wins: WinDetail[]): { reel: number; row: number }[] {
 }
 
 function formatWinPill(w: WinDetail): string {
-  return `${w.symbol} · ${w.count}oak · ${w.ways} ways · +${w.amount.toLocaleString()}${
-    w.mult > 1 ? ` · ×${w.mult}` : ''
-  }`;
+  const base = `${w.symbol} ×${w.count} · ${w.ways} ways L→R · +${w.amount.toLocaleString()}`;
+  return w.mult > 1 ? `${base} · wild ×${w.mult}` : base;
 }

@@ -390,6 +390,81 @@
  footer { gap: 0.35rem; padding: 0.5rem; }
  .btn-spin { min-width: 100px; font-size: 1.2rem; }
  }
+ /* Vegas celebration overlay */
+ #celebration-root {
+ position: fixed;
+ inset: 0;
+ z-index: 70;
+ display: none;
+ pointer-events: none;
+ }
+ #celebration-root.show {
+ display: block;
+ pointer-events: auto;
+ }
+ #celebration-root .cele-veil {
+ width: 100%;
+ height: 100%;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ background: radial-gradient(ellipse at 50% 40%, #3a2010cc 0%, #000e 70%);
+ animation: cele-in 0.2s ease-out;
+ }
+ #celebration-root.flash-big .cele-veil {
+ background: radial-gradient(ellipse at 50% 40%, #5a4010ee 0%, #000e 72%);
+ }
+ #celebration-root.flash-mega .cele-veil {
+ background: radial-gradient(ellipse at 50% 40%, #6a2010ee 0%, #000f 72%);
+ }
+ #celebration-root.flash-super .cele-veil {
+ background: radial-gradient(ellipse at 50% 40%, #4a1060ee 0%, #000f 72%);
+ }
+ .cele-card {
+ text-align: center;
+ padding: 1.5rem 2rem 2rem;
+ min-width: min(90vw, 420px);
+ border-radius: 20px;
+ border: 2px solid #e8b84aaa;
+ background: #120c08f2;
+ box-shadow: 0 0 60px #e8b84a44, 0 24px 80px #000c;
+ }
+ .cele-kicker {
+ font-size: 0.75rem;
+ letter-spacing: 0.22em;
+ color: #d4b896;
+ margin-bottom: 0.35rem;
+ }
+ .cele-title {
+ font-family: 'Bebas Neue', Impact, sans-serif;
+ font-size: clamp(2.4rem, 8vw, 3.8rem);
+ letter-spacing: 0.08em;
+ line-height: 1;
+ text-shadow: 0 4px 24px #e8b84a88;
+ }
+ .cele-title-count { color: #f0d080; }
+ .cele-title-big { color: #ffd24a; }
+ .cele-title-mega { color: #ff8a3a; }
+ .cele-title-super { color: #e8a0ff; }
+ .cele-amount {
+ font-family: 'Bebas Neue', Impact, sans-serif;
+ font-size: clamp(2.8rem, 10vw, 4.5rem);
+ color: #fff8e8;
+ margin-top: 0.5rem;
+ letter-spacing: 0.04em;
+ text-shadow: 0 2px 12px #000;
+ }
+ .cele-skip {
+ margin-top: 1.1rem;
+ font-size: 0.72rem;
+ letter-spacing: 0.16em;
+ color: #9a8b78;
+ transition: opacity 0.2s;
+ }
+ @keyframes cele-in {
+ from { opacity: 0; transform: scale(1.04); }
+ to { opacity: 1; transform: scale(1); }
+ }
  </style>
  </head>
  <body>

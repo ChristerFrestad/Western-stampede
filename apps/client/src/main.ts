@@ -6,7 +6,7 @@ import {
   anticipationReels,
   isScatterNearMiss,
 } from './presentation/anticipation';
-import { runWinDirector } from './presentation/win-director';
+import { runCelebration } from './presentation/celebration-controller';
 import { ReelView } from './reel-view';
 
 const el = {
@@ -242,38 +242,29 @@ async function doSpin(buyTier?: BuyTier) {
       nearMissScatter: nearMiss,
     });
 
-    // Feature meter before win director so count-up can include it
     if (inFeature && el.featureWinVal) {
       el.featureWinVal.textContent = fmt(featureWinSum);
     }
 
-    const { tier } = await runWinDirector(
-      reels,
-      result,
-      {
-        lastWin: el.lastWin,
-        featureWinVal: el.featureWinVal,
-        featureWinSum: inFeature ? featureWinSum : undefined,
-      },
-      { turbo: autoplay },
-    );
+    // Vegas celebration: every win FX → speedy count → BIG/MEGA/SUPER · Space/click skips
+    const { tier } = await runCelebration(reels, result, {
+      lastWinEl: el.lastWin,
+      featureWinEl: el.featureWinVal,
+      featureWinSum: inFeature ? featureWinSum : undefined,
+      turbo: autoplay,
+    });
 
     setBalance(result.balance);
     updateMeters(result);
 
-    if (tier === 'mega') {
-      audio.winBig();
-      toast(`MEGA WIN ${fmt(result.totalWin)}!`);
+    if (tier === 'super' || tier === 'mega') {
+      toast(`${tier === 'super' ? 'SUPER' : 'MEGA'} WIN ${fmt(result.totalWin)}!`);
     } else if (tier === 'big') {
-      audio.winBig();
       toast(`BIG WIN ${fmt(result.totalWin)}`);
-    } else if (tier === 'small') {
-      audio.winSmall();
-    } else if (tier === 'micro') {
-      audio.winSmall();
+    } else if (tier === 'small' || tier === 'micro') {
+      /* reel FX already celebrated */
     }
 
-    // Wins first, then feature ceremony
     await presentFeaturesAfterSpin(result);
 
     if (result.features.freeGamesRemaining > 0) {
@@ -306,15 +297,16 @@ function showRules() {
   audio.click();
   openModal(`
     <h2>Western Stampede — Rules</h2>
-    <p>5 reels · 4-6-6-6-4 grid · <strong>3,456 ways</strong> (Stampede expands to 16,000).</p>
+    <p><strong>How you win (ways):</strong> Match 3+ of the same pay symbol on adjacent reels from the <em>left</em>. Multiple stacks on a reel create multiple ways. Each symbol type pays separately; all combination pays are summed.</p>
+    <p>5 reels · 4-6-6-6-4 · <strong>3,456 ways</strong> (Stampede → 16,000).</p>
     <ul>
-      <li>Match symbols left-to-right on adjacent reels.</li>
-      <li>Wild substitutes and can multiply 2× or 3×.</li>
-      <li>3 / 4 / 5 Scatters → 8 / 15 / 20 free games.</li>
-      <li>During free games, 2+ scatters retrigger 5 / 8 / 15 / 20 extra.</li>
-      <li>Supercoin on reel 1 in free games spins a wheel for extra longhorn symbols.</li>
-      <li>Stampede randomly expands middle reels with a guaranteed longhorn line.</li>
-      <li>Buy Bonus: 22× / 80× / 145× bet for 8 / 15 / 20 free games (same paytable as natural).</li>
+      <li><strong>Wilds</strong> substitute for pay symbols (not scatters) and may apply ×2 or ×3 when they help a win.</li>
+      <li><strong>Combos:</strong> each winning symbol group animates with an explainer (count · ways · amount · wild mult).</li>
+      <li><strong>Scatters:</strong> 3/4/5 → 8/15/20 free games. In free games, 2+ scatters retrigger +5/8/15/20.</li>
+      <li><strong>Supercoin</strong> (reel 1 in free games): wheel adds longhorns to feature strips.</li>
+      <li><strong>Stampede:</strong> random expand + guaranteed longhorn line.</li>
+      <li><strong>Buy:</strong> 22× / 80× / 145× bet → 8 / 15 / 20 free games (same math as natural).</li>
+      <li><strong>Win celebrations (× your bet):</strong> BIG ≥15× · MEGA ≥40× · SUPER ≥80×. Speedy count-up; <strong>Space or click</strong> skips to the next celebration phase.</li>
     </ul>
     <p style="color:#c44b2b;font-weight:600">Demo play only — not real-money gambling. Outcomes are server-authoritative.</p>
     <div class="modal-actions">
