@@ -43,9 +43,13 @@ let inFeature = false;
 
 const reels = new ReelView(el.canvas);
 reels.onSpinStart = () => audio.spinStart();
-reels.onReelStop = () => audio.spinStopTick();
-reels.onSpinEnd = () => audio.stopSpinLoop();
-reels.onAnticipation = () => audio.anticipation();
+reels.onReelStop = (reelIndex, symbols) => audio.reelLandSymbols(reelIndex, symbols);
+reels.onSpinEnd = () => {
+  audio.stopSpinLoop();
+  audio.anticipationStop();
+};
+reels.onAnticipation = () => audio.anticipationStart();
+reels.onAnticipationEnd = () => audio.anticipationStop();
 reels.onNearMiss = () => audio.nearMiss();
 
 function fmt(n: number): string {
@@ -179,6 +183,7 @@ async function presentFeaturesAfterSpin(result: SpinResult) {
       subtitle: `Feature total: ${fmt(featureWinSum)}`,
       ms: 2400,
     });
+    audio.freeGamesEnd();
     featureWinSum = 0;
     inFeature = false;
     if (el.featureWin) el.featureWin.style.display = 'none';
@@ -422,10 +427,9 @@ async function boot() {
   };
   if (el.mute) {
     el.mute.onclick = () => {
-      audio.muted = !audio.muted;
-      if (audio.muted) audio.stopSpinLoop();
+      audio.setMuted(!audio.muted);
       el.mute!.textContent = audio.muted ? 'SOUND OFF' : 'SOUND';
-      audio.click();
+      if (!audio.muted) audio.click();
     };
   }
 

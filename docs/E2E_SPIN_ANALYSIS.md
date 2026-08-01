@@ -37,9 +37,16 @@ pnpm math:sim:buy 5000               # buy tier RTP
 - [ ] All reels blur at spin start  
 - [ ] Staggered stops L→R while trailing reels still move  
 - [ ] Symbols stay centered in cells on win (no corner zoom)  
-- [ ] Wild ×2/×3 badge centered on wild cell  
-- [ ] Combo pills + BIG/MEGA banners when thresholds hit  
+- [ ] Wild reveal (flash + expanding ring) then ×2/×3 badge  
+- [ ] Each win lights cells left→right before pill  
+- [ ] Non-paying symbols dim during combo  
+- [ ] Anticipation: glow on pending reels + rising SFX when 2 scatters  
+- [ ] Combo pills + BIG/MEGA/SUPER banners when thresholds hit  
 - [ ] Space skips celebration without breaking next spin  
+- [ ] BGM runs after first interaction; mute stops all audio  
+- [ ] Longhorn / scatter / wild land SFX distinct on reel stop  
+
+See also [PRESENTATION.md](./PRESENTATION.md) and [AUDIO.md](./AUDIO.md).
 
 ## Client unit tests
 

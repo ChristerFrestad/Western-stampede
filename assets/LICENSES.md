@@ -12,7 +12,8 @@ Project source: see root `LICENSE` (MIT unless otherwise noted).
 
 - Symbol icons, desert background, cabinet frame, free-games splash, and Supercoin wheel art in `apps/client/public/assets/` were generated with **xAI Imagine** for this project (original assets).
 - Reel chrome, masks, motion blur, and layout are code-driven in PixiJS (`apps/client/src/reel-view.ts`).
-- SFX are synthesized in-browser via Web Audio (`apps/client/src/audio.ts`) — no third-party sample packs.
+- SFX and BGM are synthesized in-browser via Web Audio (`apps/client/src/audio.ts`) by default — no third-party sample packs required.
+- Optional sample overrides may be added under `apps/client/public/assets/sfx/` (`{id}.ogg` / `.mp3`); list each file here with author, URL, and license (prefer CC0).
 
 ## Future third-party packs
 

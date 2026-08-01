@@ -47,6 +47,12 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
@@ -69,11 +75,15 @@ export class ReelView {
   private multLayer = new Container();
   private pillText: Text | null = null;
   /** Optional hooks for SFX (set by main). */
-  onReelStop: ((reelIndex: number) => void) | null = null;
+  onReelStop: ((reelIndex: number, symbols: SymbolId[]) => void) | null = null;
   onSpinStart: (() => void) | null = null;
   onSpinEnd: (() => void) | null = null;
+  /** Fired when first anticipation reel begins stopping. */
   onAnticipation: (() => void) | null = null;
+  onAnticipationEnd: (() => void) | null = null;
   onNearMiss: (() => void) | null = null;
+  private anticipGraphics: Graphics | null = null;
+  private anticipActive = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.app = new Application();
@@ -392,7 +402,7 @@ export class ReelView {
     }
 
     const antic = new Set(opts?.anticipationReels ?? []);
-    if (antic.size) this.onAnticipation?.();
+    let anticipStarted = false;
 
     // 1) Build strips and start ALL reels spinning in parallel
     for (let r = 0; r < 5; r++) {
@@ -411,8 +421,13 @@ export class ReelView {
     for (let i = 0; i < cadence.stopOrder.length; i++) {
       const r = cadence.stopOrder[i]!;
       const isAntic = antic.has(r);
+      if (isAntic && !anticipStarted) {
+        anticipStarted = true;
+        this.startAnticipationBoots(antic);
+        this.onAnticipation?.();
+      }
       await this.stopReel(r, grid[r]!, cadence.stopDurationMs[i]!, isAntic);
-      this.onReelStop?.(r);
+      this.onReelStop?.(r, grid[r]!);
       if (isAntic && opts?.nearMissScatter) {
         const hasSc = grid[r]!.some((s) => s === 'SCATTER' || s === 'SUPERCOIN');
         if (!hasSc) this.onNearMiss?.();
@@ -420,9 +435,70 @@ export class ReelView {
       await sleep(cadence.gapAfterStopMs[i]!);
     }
 
+    this.stopAnticipationBoots();
+    if (anticipStarted) this.onAnticipationEnd?.();
     this.setGrid(grid, heights);
     this.onSpinEnd?.();
     this.spinning = false;
+  }
+
+  /** Visual anticipation boots: dim board, glow pending reels. */
+  private startAnticipationBoots(anticReels: Set<number>) {
+    this.anticipActive = true;
+    if (!this.anticipGraphics) {
+      this.anticipGraphics = new Graphics();
+      this.board.addChild(this.anticipGraphics);
+    }
+    const g = this.anticipGraphics;
+    const maxRows = Math.max(...this.heights);
+    const boardW = 5 * CELL_W + 4 * REEL_GAP;
+    const boardH = maxRows * CELL_H;
+    const originX = -boardW / 2;
+    const originY = -boardH / 2;
+
+    // Dim non-antic reels
+    for (let r = 0; r < this.reels.length; r++) {
+      const reel = this.reels[r]!;
+      if (!anticReels.has(r) && reel.spinning) {
+        reel.root.alpha = 0.55;
+      } else if (anticReels.has(r)) {
+        reel.root.alpha = 1;
+      }
+    }
+
+    const draw = () => {
+      if (!this.anticipActive || !this.anticipGraphics) return;
+      const pulse = 0.45 + 0.55 * Math.sin(performance.now() / 180);
+      g.clear();
+      // Vignette plate
+      g.roundRect(originX - 28, originY - 28, boardW + 56, boardH + 56, 22);
+      g.stroke({ color: 0xff6a2a, width: 3, alpha: 0.25 + pulse * 0.35 });
+      for (const r of anticReels) {
+        const reel = this.reels[r];
+        if (!reel) continue;
+        g.roundRect(
+          reel.x - 4,
+          reel.baseY - 4,
+          CELL_W + 8,
+          reel.height * CELL_H + 8,
+          10,
+        );
+        g.stroke({ color: 0xffc14a, width: 3, alpha: pulse });
+      }
+      // Micro board scale pulse
+      this.board.scale.set(1 + 0.008 * pulse);
+      requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  }
+
+  private stopAnticipationBoots() {
+    this.anticipActive = false;
+    this.board.scale.set(1);
+    this.anticipGraphics?.clear();
+    for (const reel of this.reels) {
+      reel.root.alpha = 1;
+    }
   }
 
   private prepareStrip(
@@ -554,6 +630,7 @@ export class ReelView {
   // --- Presentation FX API ---
 
   resetPresentation() {
+    this.stopAnticipationBoots();
     this.clearWinGlow();
     this.multLayer.removeChildren();
     this.fxLayer.removeChildren();
@@ -584,32 +661,82 @@ export class ReelView {
     }
   }
 
+  /**
+   * Wild reveal: flash + expanding ring from the wild art, then mult badge.
+   * Geometry stays layoutSprite-stable (no corner-zoom scale on the symbol).
+   */
   async playWildLand(
     wildMults: Array<{ reel: number; row: number; mult: number }>,
     ms = 900,
   ): Promise<void> {
     this.multLayer.removeChildren();
     this.fxLayer.removeChildren();
+    if (!wildMults.length) return;
+
+    const revealMs = Math.min(ms * 0.55, 520);
+    const badgeMs = Math.max(280, ms - revealMs);
+
+    // Phase 1 — extend/reveal from symbol
+    const startReveal = performance.now();
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        const t = Math.min(1, (performance.now() - startReveal) / revealMs);
+        const ease = 1 - Math.pow(1 - t, 3);
+        this.fxLayer.removeChildren();
+        for (const w of wildMults) {
+          const spr = this.reels[w.reel]?.cells[w.row];
+          const reel = this.reels[w.reel];
+          if (!spr || !reel) continue;
+          this.layoutSprite(
+            spr,
+            w.row * CELL_H,
+            (spr as Sprite & { symbolId?: string }).symbolId ?? 'WILD',
+          );
+          // Flash white → gold (extension of the given wild image)
+          const flash = t < 0.35 ? 1 : Math.max(0, 1 - (t - 0.35) / 0.65);
+          spr.alpha = 1;
+          spr.tint = flash > 0.2 ? 0xffffff : 0xfff0c0;
+
+          const gx = reel.root.x + CELL_W / 2;
+          const gy = reel.root.y + w.row * CELL_H + CELL_H / 2;
+          const ring = new Graphics();
+          const rad = (Math.min(CELL_W, CELL_H) / 2) * (0.4 + ease * 0.9);
+          ring.circle(gx, gy, rad);
+          ring.stroke({ color: 0xffe080, width: 3 + ease * 4, alpha: 0.95 * (1 - t * 0.35) });
+          ring.circle(gx, gy, rad * 0.55);
+          ring.stroke({ color: 0xfff6c8, width: 2, alpha: 0.5 * (1 - t) });
+          this.fxLayer.addChild(ring);
+
+          // Soft rays (8 lines) as “extension” of the art
+          const rays = new Graphics();
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 + t * 0.8;
+            const len = rad * (0.9 + 0.35 * Math.sin(t * Math.PI + i));
+            rays.moveTo(gx, gy);
+            rays.lineTo(gx + Math.cos(a) * len, gy + Math.sin(a) * len);
+          }
+          rays.stroke({ color: 0xffd24a, width: 2, alpha: 0.35 + 0.4 * (1 - t) });
+          this.fxLayer.addChild(rays);
+        }
+        if (t < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+
+    // Phase 2 — mult badges bounce in; keep gold frames
+    this.fxLayer.removeChildren();
     for (const w of wildMults) {
       const spr = this.reels[w.reel]?.cells[w.row];
-      if (!spr) continue;
-      const reel = this.reels[w.reel]!;
-      // Keep sprite geometry stable — only tint
-      spr.alpha = 1;
+      const reel = this.reels[w.reel];
+      if (!spr || !reel) continue;
       spr.tint = 0xfff0c0;
-      this.layoutSprite(
-        spr,
-        w.row * CELL_H,
-        (spr as Sprite & { symbolId?: string }).symbolId ?? 'WILD',
-      );
-      spr.tint = 0xfff0c0;
-
       const gx = reel.root.x + CELL_W / 2;
       const gy = reel.root.y + w.row * CELL_H + CELL_H / 2;
-      const g = new Graphics();
-      g.roundRect(gx - CELL_W / 2 + 2, gy - CELL_H / 2 + 2, CELL_W - 4, CELL_H - 4, 10);
-      g.stroke({ color: 0xffe080, width: 3, alpha: 0.95 });
-      this.fxLayer.addChild(g);
+      const frame = new Graphics();
+      frame.roundRect(gx - CELL_W / 2 + 2, gy - CELL_H / 2 + 2, CELL_W - 4, CELL_H - 4, 10);
+      frame.stroke({ color: 0xffe080, width: 3, alpha: 0.95 });
+      this.fxLayer.addChild(frame);
 
       const label = new Text({
         text: `×${w.mult}`,
@@ -627,14 +754,40 @@ export class ReelView {
 
       const start = performance.now();
       const anim = () => {
-        const t = Math.min(1, (performance.now() - start) / ms);
-        label.scale.set(1 + 0.18 * Math.sin(t * Math.PI));
-        g.alpha = 0.45 + 0.55 * Math.sin(t * Math.PI);
+        const t = Math.min(1, (performance.now() - start) / badgeMs);
+        // Bounce-in then gentle pulse
+        const pop = t < 0.35 ? easeOutBack(t / 0.35) : 1 + 0.12 * Math.sin((t - 0.35) * Math.PI * 2);
+        label.scale.set(pop);
+        frame.alpha = 0.55 + 0.45 * Math.sin(t * Math.PI);
         if (t < 1) requestAnimationFrame(anim);
       };
       requestAnimationFrame(anim);
     }
-    await sleep(ms);
+    await sleep(badgeMs);
+  }
+
+  /** Keep mult badges on wild cells that participate in the current win. */
+  showWildBadges(wildMults: Array<{ reel: number; row: number; mult: number }>) {
+    this.multLayer.removeChildren();
+    for (const w of wildMults) {
+      const reel = this.reels[w.reel];
+      if (!reel) continue;
+      const gx = reel.root.x + CELL_W / 2;
+      const gy = reel.root.y + w.row * CELL_H + CELL_H / 2;
+      const label = new Text({
+        text: `×${w.mult}`,
+        style: {
+          fontFamily: 'Bebas Neue, Impact, sans-serif',
+          fontSize: 28,
+          fill: 0xfff3a0,
+          dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.85 },
+        },
+      });
+      label.anchor.set(0.5);
+      label.x = gx;
+      label.y = gy + CELL_H * 0.28;
+      this.multLayer.addChild(label);
+    }
   }
 
   async playWinCells(
@@ -648,32 +801,96 @@ export class ReelView {
         const pulse = 0.55 + 0.45 * Math.sin(t * Math.PI * 3);
         this.fxLayer.removeChildren();
         for (const c of cells) {
-          const reel = this.reels[c.reel];
-          if (!reel) continue;
-          const spr = reel.cells[c.row];
-          if (spr) {
-            // Pulse via tint/alpha only — never scale (avoids corner zoom)
-            spr.alpha = 1;
-            spr.tint = pulse > 0.75 ? 0xffffee : 0xffffff;
-            this.layoutSprite(
-              spr,
-              c.row * CELL_H,
-              (spr as Sprite & { symbolId?: string }).symbolId ?? 'A',
-            );
-            spr.tint = pulse > 0.75 ? 0xffffee : 0xffffff;
-          }
-          const g = new Graphics();
-          const gx = reel.root.x;
-          const gy = reel.root.y + c.row * CELL_H;
-          g.roundRect(gx + 1, gy + 1, CELL_W - 2, CELL_H - 2, 10);
-          g.stroke({ color: 0xffd24a, width: 3, alpha: pulse });
-          this.fxLayer.addChild(g);
+          this.drawWinCell(c, pulse);
         }
         if (t < 1) requestAnimationFrame(tick);
         else resolve();
       };
       requestAnimationFrame(tick);
     });
+  }
+
+  /**
+   * Sequential L→R win reveal: light cells reel-by-reel so the paying
+   * composition is obvious, then hold a full pulse.
+   */
+  async playWinCellsSequential(
+    cells: { reel: number; row: number }[],
+    opts?: { stepMs?: number; holdMs?: number; shouldAbort?: () => boolean },
+  ): Promise<void> {
+    const stepMs = opts?.stepMs ?? 140;
+    const holdMs = opts?.holdMs ?? 420;
+    if (!cells.length) return;
+
+    const byReel = new Map<number, { reel: number; row: number }[]>();
+    for (const c of cells) {
+      const list = byReel.get(c.reel) ?? [];
+      list.push(c);
+      byReel.set(c.reel, list);
+    }
+    const reelOrder = [...byReel.keys()].sort((a, b) => a - b);
+    const lit: { reel: number; row: number }[] = [];
+
+    for (const r of reelOrder) {
+      if (opts?.shouldAbort?.()) break;
+      for (const c of byReel.get(r)!) lit.push(c);
+      this.dimExcept(lit);
+      this.fxLayer.removeChildren();
+      for (const c of lit) this.drawWinCell(c, 1);
+      await sleep(stepMs);
+    }
+
+    if (opts?.shouldAbort?.()) return;
+
+    const holdStart = performance.now();
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        if (opts?.shouldAbort?.()) {
+          resolve();
+          return;
+        }
+        const t = Math.min(1, (performance.now() - holdStart) / holdMs);
+        const pulse = 0.55 + 0.45 * Math.sin(t * Math.PI * 3);
+        this.fxLayer.removeChildren();
+        for (const c of lit) this.drawWinCell(c, pulse);
+        if (t < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  private drawWinCell(c: { reel: number; row: number }, pulse: number) {
+    const reel = this.reels[c.reel];
+    if (!reel) return;
+    const spr = reel.cells[c.row];
+    if (spr) {
+      spr.alpha = 1;
+      spr.tint = pulse > 0.75 ? 0xffffee : 0xffffff;
+      this.layoutSprite(
+        spr,
+        c.row * CELL_H,
+        (spr as Sprite & { symbolId?: string }).symbolId ?? 'A',
+      );
+      spr.tint = pulse > 0.75 ? 0xffffee : 0xffffff;
+    }
+    const g = new Graphics();
+    const gx = reel.root.x;
+    const gy = reel.root.y + c.row * CELL_H;
+    g.roundRect(gx + 1, gy + 1, CELL_W - 2, CELL_H - 2, 10);
+    g.stroke({ color: 0xffd24a, width: 3, alpha: pulse });
+    // Corner studs for “this cell pays”
+    const stud = 0xffe080;
+    for (const [sx, sy] of [
+      [gx + 8, gy + 8],
+      [gx + CELL_W - 8, gy + 8],
+      [gx + 8, gy + CELL_H - 8],
+      [gx + CELL_W - 8, gy + CELL_H - 8],
+    ] as const) {
+      g.circle(sx, sy, 3);
+      g.fill({ color: stud, alpha: pulse });
+    }
+    this.fxLayer.addChild(g);
   }
 
   highlightWins(wins: Array<{ symbol: string }>) {

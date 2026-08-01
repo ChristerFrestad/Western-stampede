@@ -69,6 +69,8 @@ If Portainer says **“failed loading environment”**, the Docker environment i
 
 - [Game rules](docs/GAME_RULES.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Presentation contract](docs/PRESENTATION.md)
+- [Audio map](docs/AUDIO.md)
 - [Certification path](docs/CERTIFICATION_PATH.md)
 
 ## License

@@ -227,7 +227,9 @@ export async function runCelebration(
         b === 'big' ? 'banner_big' : b === 'mega' ? 'banner_mega' : 'banner_super';
       bannerIndex = i;
       banner.showBanner(b, result.totalWin);
-      audio.winBig();
+      if (b === 'super') audio.winSuper();
+      else if (b === 'mega') audio.winMega();
+      else audio.winBig();
       reels.pulseBoard(b === 'super' ? 20 : b === 'mega' ? 16 : 12);
 
       const hold = turbo ? 600 : b === 'super' ? 2800 : b === 'mega' ? 2200 : 1800;
