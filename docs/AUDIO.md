@@ -1,44 +1,46 @@
-# Western Stampede — Audio map
+# Western Stampede — Audio design (presentation)
 
-Original procedural audio (Web Audio buffers + live layers). Design targets the *feel* of premium western/animal ways cabinets: continuous nature bed while open, mechanical reel clunks, signature premium-animal horn, scatter bell, cascading coins, escalating fanfares, then a resolve hit on total.
+Original procedural audio. **No third-party game assets.** Design targets the *feel* of premium western / animal ways cabinets: continuous nature bed, mechanical reels, signature premium animal, free-feature energy lift, and loud floor presence (player can lower device volume).
 
-Optional sample overrides: `apps/client/public/assets/sfx/{id}.ogg|mp3|wav` (CC0 only — list in `assets/LICENSES.md`). Never ship ripped commercial game audio.
+## Expert timeline (what plays when)
 
-## Buses
-
-| Bus | Role | Default level |
+| Moment | Layers | Character |
 | --- | --- | --- |
-| master | Mute / overall | ~0.42 |
-| ambient | Wind / nature bed (always on after unlock) | continuous |
-| music | Harmonic stem + free/win pulse | ducked on spin/wins |
-| sfx | One-shots + spin rumble | full under master |
+| **App open / idle** | Wind bed + harmonic pad + sparse color tones | Always-on immersion; never silent after unlock |
+| **Spin press** | Spin rumble (saw + noise) | Music/ambient duck ~40% |
+| **Each reel stop (L→R)** | Heavy clunk + noise thud; pitch/weight rises | Clear “machine” identity |
+| **Scatter / Supercoin land** | Bright multi-partial bell + coin ping | High, metallic, unmistakable |
+| **Wild land** | Whoosh + chime cluster | Magical substitute feel |
+| **Longhorn land** | Deep bellow (saw formant) + low impact | Signature premium animal |
+| **Anticipation (2 scatters path)** | Rising dual sine + heartbeat drums | Tension until last reels stop |
+| **Near miss** | Falling tone + soft whoosh | Release without reward |
+| **Win cycle (per combo)** | Short chime cluster | Marks composition |
+| **Count-up** | Rapid coin ticks | Race meter energy |
+| **BIG / MEGA / SUPER** | Layered brass fanfare + impact + coin cascade | Escalating length & density |
+| **YOU WON total** | Resolve chord + coins | Closure before idle |
+| **Free enter / retrigger** | Fanfare + drum hits; **music stem → free** | Percussive, higher drive |
+| **Free idle** | Free pad + tribal pulse | Louder pulse than base |
+| **Stampede** | Double impact + horn + whoosh | Hooves / earth |
+| **Supercoin wheel** | Tick coins while spin; bell + cluster on land | Mechanical then reward |
+| **Longhorn inject** | Horn bursts while icons fly | Herd growing |
 
-Ambient + music start on first click/key after load and stay running while the game is open (unless muted).
+## Loudness targets (cabinet-like)
 
-## Event map
-
-| Event | Method | Character |
+| Bus | Relative | Notes |
 | --- | --- | --- |
-| UI click | `click()` | Soft high tick |
-| Spin start | `spinStart()` | Low rumble loop |
-| Reel stop N | `reelStop(reelIndex)` | Clunk; pitch rises L→R |
-| Scatter land | `scatterLand()` | Bell / coin ring |
-| Wild land | `wildLand()` | Whoosh + spark |
-| Longhorn land | `longhornLand()` | Horn bellow (signature) |
-| Longhorn win | `longhornWin()` | Stronger horn fanfare |
-| Anticipation | `anticipationStart()` / `anticipationStop()` | Rising tension loop |
-| Near miss | `nearMiss()` | Falling tone |
-| Win cycle | `winCycle()` | Soft two-note |
-| Win small / big | `winSmall()` / `winBig()` | Fanfare ladder |
-| Free games | `freeGames()` | Bright stinger |
-| Stampede | `stampede()` | Low impact / hooves |
-| Wheel tick / land | `wheelTick()` / `wheelLand()` | Mechanical + resolve |
-| Coin | `coin()` | Bright ping |
-| BGM | `startBgm()` / `setMusicStem()` / `stopBgm()` | Western ambient (procedural) |
+| master | ~0.92 + compressor | Hot floor; user turns device down |
+| ambient (wind) | high continuous | Never “is the sound on?” |
+| music | high, ducked on spin/wins | Free stem more energetic |
+| sfx | dominant on events | Clunks/bells cut through bed |
 
-## Mixing notes
+Soft knee compressor on master prevents digital clip while keeping average level high.
 
-- Prefer one signature land SFX per reel stop (priority: scatter > wild > longhorn > generic clunk).
-- Cap simultaneous one-shots mentally (~4); short envelopes only.
-- Mute toggles master gain to 0 and stops loops.
-- Document any third-party CC0 samples in `assets/LICENSES.md`.
+## Implementation
+
+- `apps/client/src/audio.ts` — Web Audio buffers + live layers
+- Optional file overrides: `/assets/sfx/{id}.ogg|mp3|wav` (CC0 only; list in `assets/LICENSES.md`)
+- Unlock on first click/key (browser autoplay policy)
+
+## Mute
+
+`setMuted(true)` zeros master and stops loops; unmute restarts wind + current stem.
