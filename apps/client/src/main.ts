@@ -245,7 +245,9 @@ function sleep(ms: number) {
 }
 
 async function boot() {
+ toast('Loading cabinet art…');
  try {
+ await reels.ready;
  await api.ensureSession();
  config = await api.getConfig();
  fillBets();

@@ -10,8 +10,8 @@ Project source: see root `LICENSE` (MIT unless otherwise noted).
 
 ## Symbols & art (v1)
 
-- Symbol presentation uses **emoji glyphs + procedurally drawn panels** in PixiJS (no third-party slot art).
-- Background mesas/sun are **procedural graphics** in `apps/client/src/reel-view.ts`.
+- Symbol icons, desert background, and cabinet frame art in `apps/client/public/assets/` were generated with **xAI Imagine** for this project (original assets).
+- Reel chrome, masks, motion blur, and layout are code-driven in PixiJS (`apps/client/src/reel-view.ts`).
 
 ## Future third-party packs
 
