@@ -22,11 +22,11 @@
 | `GUEST_START_BALANCE` | `10000` | Demo credits |
 | `CORS_ORIGIN` | `*` | Or your domain |
 | `VITE_API_URL` | empty | Leave empty so nginx proxies `/api` |
-| `WEB_PORT` | `8080` | Host port for the game UI |
+| `WEB_PORT` | `18080` | Host port for the game UI (change if busy) |
 | `RGS_HOST_PORT` | `127.0.0.1:13000` | Host bind for API (default avoids port 3000 clash) |
 
 8. Deploy the stack  
-9. Open `http://<host>:8080` (game). API is reached via the same origin (`/api`, `/health` through nginx).
+9. Open `http://<host>:18080` (game). API is reached via the same origin (`/api`, `/health` through nginx).
 
 ## Common errors
 
@@ -34,13 +34,13 @@
 | --- | --- |
 | `reference not found` | Branch must be **`main`**, not `master` |
 | `open .../docker-compose.yml: no such file` | Compose path must be **`docker-compose.yml`** at repo root |
-| `address already in use` (port 3000) | Fixed: API no longer binds host `:3000`. Redeploy latest `main`. If 8080 is busy, set `WEB_PORT=18080` |
+| `port is already allocated` / `address already in use` | Defaults now use **18080** (UI) and **13000** (API). Or set `WEB_PORT` / `RGS_HOST_PORT` in stack env |
 | Clone auth failed | Add Portainer Git credentials for private repos |
 
 ## Health
 
-- Game UI: `http://host:8080` (or `WEB_PORT`)
-- API health (via nginx): `http://host:8080/health`
+- Game UI: `http://host:18080` (or your `WEB_PORT`)
+- API health (via nginx): `http://host:18080/health`
 - Optional direct API (localhost): `http://127.0.0.1:13000/health`
 - Admin metrics: `GET /api/v1/admin/metrics` with header `x-admin-token`
 
