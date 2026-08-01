@@ -19,6 +19,7 @@ describe('evaluateWays', () => {
  assert.equal(buf!.count, 5);
  assert.equal(buf!.ways, 1);
  assert.equal(buf!.amount, Math.floor(100 * 2.0 * 1));
+ assert.ok(buf!.cells && buf!.cells.length >= 5);
  });
 
  it('wild substitutes and multiplies', () => {
@@ -36,6 +37,7 @@ describe('evaluateWays', () => {
  assert.ok(buf);
  assert.equal(buf!.count, 3);
  assert.ok(buf!.amount > 0);
+ assert.ok(buf!.cells?.some((c) => c.reel === 1 && c.row === 0));
  });
 
  it('counts scatters', () => {

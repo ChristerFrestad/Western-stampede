@@ -58,14 +58,21 @@ export interface MathConfigPublic {
  demoOnly: boolean;
 }
 
+export interface WinCell {
+  reel: number;
+  row: number;
+}
+
 export interface WinDetail {
- symbol: SymbolId;
- count: number;
- ways: number;
- /** Wild multiplier product applied. */
- mult: number;
- /** Win in credits. */
- amount: number;
+  symbol: SymbolId;
+  count: number;
+  ways: number;
+  /** Wild multiplier product applied. */
+  mult: number;
+  /** Win in credits. */
+  amount: number;
+  /** Cells that participate in at least one paying way (includes wilds). */
+  cells?: WinCell[];
 }
 
 export interface SupercoinResult {
