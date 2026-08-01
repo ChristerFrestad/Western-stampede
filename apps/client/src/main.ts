@@ -538,7 +538,7 @@ async function boot() {
   };
   window.addEventListener('pointerdown', unlockAudio, { once: true });
   window.addEventListener('keydown', unlockAudio, { once: true });
-  toast('Click anywhere to enable sound');
+  toast('Click anywhere for full cabinet sound (loud by design)');
 
   el.spin.onclick = () => {
     audio.unlock();
