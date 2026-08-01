@@ -131,6 +131,24 @@ export class GameAudio {
     this.beep(480, 0.12, 'triangle', 0.18, 720);
     window.setTimeout(() => this.beep(960, 0.2, 'sine', 0.16), 100);
   }
+
+  wildLand() {
+    this.beep(180, 0.1, 'sawtooth', 0.1, 360);
+    window.setTimeout(() => this.beep(720, 0.12, 'sine', 0.14), 70);
+  }
+
+  winCycle() {
+    this.beep(440, 0.07, 'triangle', 0.1);
+    window.setTimeout(() => this.beep(554, 0.08, 'triangle', 0.1), 60);
+  }
+
+  anticipation() {
+    this.beep(200, 0.35, 'sine', 0.08, 420);
+  }
+
+  nearMiss() {
+    this.beep(300, 0.15, 'triangle', 0.1, 120);
+  }
 }
 
 export const audio = new GameAudio();

@@ -57,10 +57,15 @@ export class ReelView {
   private titleText: Text | null = null;
   private chromeOuter: Graphics | null = null;
   private chromeInner: Graphics | null = null;
+  private fxLayer = new Container();
+  private multLayer = new Container();
+  private pillText: Text | null = null;
   /** Optional hooks for SFX (set by main). */
   onReelStop: ((reelIndex: number) => void) | null = null;
   onSpinStart: (() => void) | null = null;
   onSpinEnd: (() => void) | null = null;
+  onAnticipation: (() => void) | null = null;
+  onNearMiss: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.app = new Application();
@@ -123,6 +128,22 @@ export class ReelView {
 
     this.winGlow = new Graphics();
     this.board.addChild(this.winGlow);
+    this.board.addChild(this.fxLayer);
+    this.board.addChild(this.multLayer);
+
+    this.pillText = new Text({
+      text: '',
+      style: {
+        fontFamily: 'Outfit, sans-serif',
+        fontSize: 16,
+        fill: 0xfff2c4,
+        fontWeight: '700',
+        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.8 },
+      },
+    });
+    this.pillText.anchor.set(0.5);
+    this.pillText.visible = false;
+    this.stageRoot.addChild(this.pillText);
 
     this.layoutBoard(this.heights, emptyGrid(this.heights));
     this.layoutStage();
@@ -331,34 +352,65 @@ export class ReelView {
   }
 
   /**
-   * Real vertical reel spin: long strip scrolls behind a mask, staggered stops, bounce.
+   * Sequential reel stops with optional anticipation / near-miss filler (presentation only).
+   * Final window always matches server `grid`.
    */
-  async animateSpin(grid: SymbolId[][], heights: number[]): Promise<void> {
+  async animateSpin(
+    grid: SymbolId[][],
+    heights: number[],
+    opts?: {
+      anticipationReels?: number[];
+      nearMissScatter?: boolean;
+    },
+  ): Promise<void> {
     if (this.spinning) return;
     this.spinning = true;
-    this.clearWinGlow();
+    this.resetPresentation();
     this.onSpinStart?.();
 
     if (heights.join(',') !== this.heights.join(',')) {
       this.layoutBoard(heights, grid);
     }
 
-    const jobs: Promise<void>[] = [];
+    const antic = new Set(opts?.anticipationReels ?? []);
+    if (antic.size) this.onAnticipation?.();
+
+    // Start all strips spinning in place (filler loops) then stop sequentially
     for (let r = 0; r < 5; r++) {
-      jobs.push(this.spinOneReel(r, grid[r]!, r * 140));
+      this.prepareStrip(
+        r,
+        grid[r]!,
+        antic.has(r) && !!opts?.nearMissScatter,
+      );
     }
-    await Promise.all(jobs);
+
+    for (let r = 0; r < 5; r++) {
+      const isAntic = antic.has(r);
+      const duration = isAntic ? 2600 + r * 120 : 900 + r * 160;
+      await this.stopReel(r, grid[r]!, duration, isAntic);
+      this.onReelStop?.(r);
+      if (isAntic && opts?.nearMissScatter) {
+        // After anticipation land without 3rd scatter on this reel
+        const hasSc = grid[r]!.some(
+          (s) => s === 'SCATTER' || s === 'SUPERCOIN',
+        );
+        if (!hasSc) this.onNearMiss?.();
+      }
+      await sleep(isAntic ? 120 : 70);
+    }
+
     this.setGrid(grid, heights);
     this.onSpinEnd?.();
     this.spinning = false;
   }
 
-  private async spinOneReel(reelIndex: number, finalSymbols: SymbolId[], delayMs: number) {
-    await sleep(delayMs);
+  private prepareStrip(
+    reelIndex: number,
+    finalSymbols: SymbolId[],
+    nearMissScatter: boolean,
+  ) {
     const reel = this.reels[reelIndex]!;
     const H = reel.height;
-
-    // Build strip: filler + final window symbols
     reel.strip.removeChildren();
     reel.cells = [];
     reel.frames = [];
@@ -366,6 +418,11 @@ export class ReelView {
     const stripSyms: SymbolId[] = [];
     for (let i = 0; i < SPIN_FILLER; i++) {
       stripSyms.push(randomSymbolId());
+    }
+    // Near-miss: put scatters just above final window in filler
+    if (nearMissScatter) {
+      stripSyms[SPIN_FILLER - 2] = 'SCATTER' as SymbolId;
+      stripSyms[SPIN_FILLER - 1] = 'SCATTER' as SymbolId;
     }
     for (let row = 0; row < H; row++) {
       stripSyms.push(finalSymbols[row]!);
@@ -378,39 +435,52 @@ export class ReelView {
       reel.cells.push(sprite);
       reel.frames.push(frame);
     }
-
-    // Start showing top of filler
     reel.strip.y = 0;
+  }
 
-    // Motion blur while spinning hard
+  private async stopReel(
+    reelIndex: number,
+    finalSymbols: SymbolId[],
+    duration: number,
+    anticipation: boolean,
+  ) {
+    const reel = this.reels[reelIndex]!;
     const blur = new BlurFilter({ strength: 0, quality: 3 });
     reel.strip.filters = [blur];
-
     const travel = SPIN_FILLER * CELL_H;
-    const duration = 1200 + reelIndex * 110;
     const start = performance.now();
 
     await new Promise<void>((resolve) => {
       const tick = () => {
-        const now = performance.now();
-        const t = Math.min(1, (now - start) / duration);
-        // Ease-out travel with small settle bounce near the end
-        const p = easeOutCubic(t);
+        const t = Math.min(1, (performance.now() - start) / duration);
+        // Anticipation: stay fast longer, then deep ease-out
+        const p = anticipation
+          ? t < 0.55
+            ? t * 0.75
+            : 0.75 * 0.55 + easeOutCubic((t - 0.55) / 0.45) * 0.25
+          : easeOutCubic(t);
+        // Normalize p to 0..1 for full travel
+        const pNorm = anticipation
+          ? Math.min(1, t < 0.55 ? (t / 0.55) * 0.35 : 0.35 + easeOutCubic((t - 0.55) / 0.45) * 0.65)
+          : easeOutCubic(t);
         const bounce =
-          t > 0.82 ? Math.sin(((t - 0.82) / 0.18) * Math.PI) * (CELL_H * 0.12) * (1 - t) : 0;
-        reel.strip.y = -(travel * p) + bounce;
-
-        // Motion blur strongest mid-spin, clear for stop
-        const blurAmt = t < 0.72 ? 5.5 * Math.sin((t / 0.72) * Math.PI) : 0;
-        blur.strength = blurAmt;
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+          t > 0.88
+            ? Math.sin(((t - 0.88) / 0.12) * Math.PI) * (CELL_H * 0.14) * (1 - t)
+            : 0;
+        reel.strip.y = -(travel * pNorm) + bounce;
+        blur.strength = anticipation
+          ? t < 0.85
+            ? 6.5
+            : 6.5 * (1 - (t - 0.85) / 0.15)
+          : t < 0.72
+            ? 5.5 * Math.sin((t / 0.72) * Math.PI)
+            : 0;
+        void p;
+        if (t < 1) requestAnimationFrame(tick);
+        else {
           reel.strip.y = -travel;
           reel.strip.filters = [];
           this.finalizeReelStrip(reel, finalSymbols);
-          this.onReelStop?.(reelIndex);
           resolve();
         }
       };
@@ -432,18 +502,153 @@ export class ReelView {
     reel.strip.y = 0;
   }
 
-  highlightWins(wins: Array<{ symbol: string }>) {
-    if (!wins.length || !this.winGlow) return;
-    const want = new Set(wins.map((w) => w.symbol));
-    this.winGlow.clear();
+  // --- Presentation FX API ---
 
+  resetPresentation() {
+    this.clearWinGlow();
+    this.multLayer.removeChildren();
+    this.fxLayer.removeChildren();
+    this.hideWinPill();
+    for (const reel of this.reels) {
+      for (const spr of reel.cells) {
+        spr.alpha = 1;
+        spr.tint = 0xffffff;
+        spr.scale.set(1);
+      }
+    }
+  }
+
+  dimExcept(cells: { reel: number; row: number }[]) {
+    const keep = new Set(cells.map((c) => `${c.reel},${c.row}`));
+    for (let r = 0; r < this.reels.length; r++) {
+      const reel = this.reels[r]!;
+      for (let row = 0; row < reel.cells.length; row++) {
+        const spr = reel.cells[row]!;
+        if (keep.has(`${r},${row}`)) {
+          spr.alpha = 1;
+          spr.tint = 0xffffff;
+        } else {
+          spr.alpha = 0.35;
+          spr.tint = 0x888888;
+        }
+      }
+    }
+  }
+
+  async playWildLand(
+    wildMults: Array<{ reel: number; row: number; mult: number }>,
+    ms = 900,
+  ): Promise<void> {
+    this.multLayer.removeChildren();
+    for (const w of wildMults) {
+      const spr = this.reels[w.reel]?.cells[w.row];
+      if (!spr) continue;
+      // Glow ring
+      const g = new Graphics();
+      const reel = this.reels[w.reel]!;
+      const gx = reel.root.x + CELL_W / 2;
+      const gy = reel.root.y + w.row * CELL_H + CELL_H / 2;
+      g.roundRect(gx - CELL_W / 2 + 2, gy - CELL_H / 2 + 2, CELL_W - 4, CELL_H - 4, 10);
+      g.stroke({ color: 0xffe080, width: 3, alpha: 0.95 });
+      this.fxLayer.addChild(g);
+
+      const label = new Text({
+        text: `×${w.mult}`,
+        style: {
+          fontFamily: 'Bebas Neue, Impact, sans-serif',
+          fontSize: 36,
+          fill: 0xfff3a0,
+          dropShadow: { color: 0x000000, blur: 6, distance: 2, alpha: 0.9 },
+        },
+      });
+      label.anchor.set(0.5);
+      label.x = gx;
+      label.y = gy;
+      this.multLayer.addChild(label);
+
+      spr.tint = 0xfff0c0;
+      // pop
+      const start = performance.now();
+      const anim = () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        const s = 1 + 0.2 * Math.sin(t * Math.PI);
+        label.scale.set(s);
+        spr.scale.set(1 + 0.08 * Math.sin(t * Math.PI));
+        g.alpha = 0.4 + 0.6 * Math.sin(t * Math.PI);
+        if (t < 1) requestAnimationFrame(anim);
+      };
+      requestAnimationFrame(anim);
+    }
+    await sleep(ms);
+  }
+
+  async playWinCells(
+    cells: { reel: number; row: number }[],
+    ms = 700,
+  ): Promise<void> {
+    const start = performance.now();
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        const pulse = 0.55 + 0.45 * Math.sin(t * Math.PI * 3);
+        this.fxLayer.removeChildren();
+        for (const c of cells) {
+          const reel = this.reels[c.reel];
+          if (!reel) continue;
+          const spr = reel.cells[c.row];
+          if (spr) {
+            spr.alpha = 1;
+            spr.tint = 0xffffff;
+            spr.scale.set(1 + 0.1 * Math.sin(t * Math.PI * 2));
+          }
+          const g = new Graphics();
+          const gx = reel.root.x;
+          const gy = reel.root.y + c.row * CELL_H;
+          g.roundRect(gx + 1, gy + 1, CELL_W - 2, CELL_H - 2, 10);
+          g.stroke({ color: 0xffd24a, width: 3, alpha: pulse });
+          this.fxLayer.addChild(g);
+        }
+        if (t < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  highlightWins(wins: Array<{ symbol: string }>) {
+    if (!wins.length) return;
+    const want = new Set(wins.map((w) => w.symbol));
+    const cells: { reel: number; row: number }[] = [];
+    for (let r = 0; r < this.reels.length; r++) {
+      for (let row = 0; row < this.reels[r]!.cells.length; row++) {
+        const id = (this.reels[r]!.cells[row] as Sprite & { symbolId?: string })
+          .symbolId;
+        if (id && want.has(id)) cells.push({ reel: r, row });
+      }
+    }
+    void this.playWinCells(cells, 600);
+    this.pulseBoard(10);
+  }
+
+  showWinPill(text: string) {
+    if (!this.pillText) return;
+    this.pillText.text = text;
+    this.pillText.visible = true;
+    this.pillText.x = this.app.screen.width / 2;
+    this.pillText.y = this.board.y - (Math.max(...this.heights) * CELL_H) / 2 - 28;
+  }
+
+  hideWinPill() {
+    if (this.pillText) this.pillText.visible = false;
+  }
+
+  pulseBoard(pulses = 12) {
+    if (!this.winGlow) return;
     const maxRows = Math.max(...this.heights);
     const boardW = 5 * CELL_W + 4 * REEL_GAP;
     const boardH = maxRows * CELL_H;
     const originX = -boardW / 2;
     const originY = -boardH / 2;
-
-    // Pulse board frame
     let pulse = 0;
     const g = this.winGlow;
     const iv = window.setInterval(() => {
@@ -452,37 +657,11 @@ export class ReelView {
       const a = 0.4 + 0.4 * Math.sin(pulse * 0.55);
       g.roundRect(originX - 22, originY - 22, boardW + 44, boardH + 44, 20);
       g.stroke({ color: 0xffd24a, width: 4, alpha: a });
-      if (pulse > 14) {
+      if (pulse > pulses) {
         clearInterval(iv);
         g.clear();
       }
     }, 55);
-
-    // Pop winning symbols
-    for (const reel of this.reels) {
-      for (const spr of reel.cells) {
-        const id = (spr as Sprite & { symbolId?: string }).symbolId;
-        if (!id || !want.has(id)) continue;
-        const ox = spr.x;
-        const oy = spr.y;
-        const ow = spr.width;
-        const oh = spr.height;
-        spr.anchor.set(0.5);
-        spr.x = ox + ow / 2;
-        spr.y = oy + oh / 2;
-        spr.width = ow;
-        spr.height = oh;
-        const start = performance.now();
-        const anim = () => {
-          const t = Math.min(1, (performance.now() - start) / 420);
-          const s = 1 + 0.12 * Math.sin(t * Math.PI);
-          spr.scale.set(s);
-          if (t < 1) requestAnimationFrame(anim);
-          else spr.scale.set(1);
-        };
-        requestAnimationFrame(anim);
-      }
-    }
   }
 
   private clearWinGlow() {

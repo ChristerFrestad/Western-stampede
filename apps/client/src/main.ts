@@ -2,6 +2,11 @@ import type { BuyTier, GameConfigResponse, SpinResult } from '@ws/shared';
 import * as api from './api';
 import { audio } from './audio';
 import { showFeatureSplash, showSupercoinWheel } from './overlays';
+import {
+  anticipationReels,
+  isScatterNearMiss,
+} from './presentation/anticipation';
+import { runWinDirector } from './presentation/win-director';
 import { ReelView } from './reel-view';
 
 const el = {
@@ -40,6 +45,8 @@ const reels = new ReelView(el.canvas);
 reels.onSpinStart = () => audio.spinStart();
 reels.onReelStop = () => audio.spinStopTick();
 reels.onSpinEnd = () => audio.stopSpinLoop();
+reels.onAnticipation = () => audio.anticipation();
+reels.onNearMiss = () => audio.nearMiss();
 
 function fmt(n: number): string {
   return n.toLocaleString();
@@ -223,33 +230,50 @@ async function doSpin(buyTier?: BuyTier) {
       }
     }
 
-    // Buy entry supercoin wheel before reels so inject is "felt" narratively after wheel
+    // Buy entry supercoin wheel before reels
     if (result.features.buyEntered && result.features.supercoin) {
       await showSupercoinWheel(result.features.supercoin);
     }
 
-    await reels.animateSpin(result.grid, result.heights);
-    reels.highlightWins(result.wins);
-    setBalance(result.balance);
-    el.lastWin.textContent = fmt(result.totalWin);
-    updateMeters(result);
+    const antic = anticipationReels(result.grid);
+    const nearMiss = isScatterNearMiss(result.grid);
+    await reels.animateSpin(result.grid, result.heights, {
+      anticipationReels: antic,
+      nearMissScatter: nearMiss,
+    });
 
-    if (result.totalWin > 0) {
-      const x = result.totalWin / result.bet;
-      if (x >= 50) {
-        audio.winBig();
-        toast(`MEGA WIN ${fmt(result.totalWin)}!`);
-      } else if (x >= 15) {
-        audio.winBig();
-        toast(`BIG WIN ${fmt(result.totalWin)}`);
-      } else if (x >= 5) {
-        audio.winSmall();
-        toast(`Nice win ${fmt(result.totalWin)}`);
-      } else {
-        audio.winSmall();
-      }
+    // Feature meter before win director so count-up can include it
+    if (inFeature && el.featureWinVal) {
+      el.featureWinVal.textContent = fmt(featureWinSum);
     }
 
+    const { tier } = await runWinDirector(
+      reels,
+      result,
+      {
+        lastWin: el.lastWin,
+        featureWinVal: el.featureWinVal,
+        featureWinSum: inFeature ? featureWinSum : undefined,
+      },
+      { turbo: autoplay },
+    );
+
+    setBalance(result.balance);
+    updateMeters(result);
+
+    if (tier === 'mega') {
+      audio.winBig();
+      toast(`MEGA WIN ${fmt(result.totalWin)}!`);
+    } else if (tier === 'big') {
+      audio.winBig();
+      toast(`BIG WIN ${fmt(result.totalWin)}`);
+    } else if (tier === 'small') {
+      audio.winSmall();
+    } else if (tier === 'micro') {
+      audio.winSmall();
+    }
+
+    // Wins first, then feature ceremony
     await presentFeaturesAfterSpin(result);
 
     if (result.features.freeGamesRemaining > 0) {
