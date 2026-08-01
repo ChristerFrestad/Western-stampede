@@ -1,7 +1,11 @@
 import type { BuyTier, GameConfigResponse, SpinResult } from '@ws/shared';
 import * as api from './api';
 import { audio } from './audio';
-import { showFeatureSplash, showSupercoinWheel } from './overlays';
+import {
+  showFeatureSplash,
+  showLonghornOnGridCallout,
+  showSupercoinWheel,
+} from './overlays';
 import {
   anticipationReels,
   isScatterNearMiss,
@@ -25,6 +29,8 @@ const el = {
   fgCount: document.getElementById('fg-count')!,
   ways: document.getElementById('ways-label')!,
   premiumInj: document.getElementById('premium-inj')!,
+  herdMeter: document.getElementById('herd-meter') as HTMLElement | null,
+  herdOnGrid: document.getElementById('herd-on-grid') as HTMLElement | null,
   featureWin: document.getElementById('feature-win') as HTMLElement | null,
   featureWinVal: document.getElementById('feature-win-val') as HTMLElement | null,
   banner: document.getElementById('feature-banner')!,
@@ -40,6 +46,8 @@ let freeRemaining = 0;
 /** Cumulative wins during the current free/buy feature (client display only). */
 let featureWinSum = 0;
 let inFeature = false;
+/** Last known Supercoin herd size (for meter pulse). */
+let lastHerd = 0;
 
 const reels = new ReelView(el.canvas);
 reels.onSpinStart = () => audio.spinStart();
@@ -103,6 +111,74 @@ function setBusy(v: boolean) {
   el.minus.disabled = v || freeRemaining > 0;
 }
 
+function setFeatureBanner(text: string | null, alert = false) {
+  if (!text) {
+    el.banner.textContent = '';
+    el.banner.classList.remove('show', 'alert');
+    return;
+  }
+  el.banner.textContent = text;
+  el.banner.classList.add('show');
+  el.banner.classList.toggle('alert', alert);
+}
+
+function updateHerdMeter(result: SpinResult, opts?: { pulse?: boolean }) {
+  const herd = result.features.longhornHerd ?? 0;
+  const onGrid = result.features.longhornsOnGrid ?? 0;
+  const freeActive =
+    freeRemaining > 0 ||
+    inFeature ||
+    result.features.buyEntered ||
+    result.features.enteredFreeGames ||
+    result.mode === 'FREE' ||
+    result.mode === 'STAMPEDE';
+
+  if (el.herdMeter) {
+    if (freeActive || herd > 0) {
+      el.herdMeter.classList.add('show');
+    } else {
+      el.herdMeter.classList.remove('show');
+    }
+  }
+
+  el.premiumInj.textContent = String(herd);
+  if (el.herdOnGrid) {
+    if (freeActive) {
+      el.herdOnGrid.textContent =
+        onGrid > 0
+          ? `On reels now: ${onGrid}`
+          : herd > 0
+            ? 'On reels now: 0 — herd is in the strips'
+            : 'Land Supercoin on reel 1 to grow the herd';
+    } else {
+      el.herdOnGrid.textContent = 'Free games · Supercoin injects Longhorns';
+    }
+  }
+
+  if (opts?.pulse && el.herdMeter && herd > lastHerd) {
+    el.herdMeter.classList.remove('pulse');
+    // reflow to restart animation
+    void el.herdMeter.offsetWidth;
+    el.herdMeter.classList.add('pulse');
+    window.setTimeout(() => el.herdMeter?.classList.remove('pulse'), 1000);
+  }
+  lastHerd = herd;
+
+  // Persistent status line during free games
+  if (freeActive && !result.features.freeGamesEnded) {
+    const parts = [
+      `FREE · ${freeRemaining} left`,
+      herd > 0 ? `herd ${herd}` : 'herd 0 — watch reel 1 Supercoin',
+      onGrid > 0 ? `${onGrid} Longhorn on reels` : null,
+    ].filter(Boolean);
+    setFeatureBanner(parts.join(' · '));
+  } else if (result.features.freeGamesEnded) {
+    setFeatureBanner(null);
+  } else if (!freeActive) {
+    setFeatureBanner(null);
+  }
+}
+
 function updateMeters(result: SpinResult) {
   freeRemaining = result.features.freeGamesRemaining;
   if (freeRemaining > 0 || result.features.buyEntered || result.features.enteredFreeGames) {
@@ -115,11 +191,7 @@ function updateMeters(result: SpinResult) {
   const ways = result.heights.reduce((a, b) => a * b, 1);
   el.ways.textContent = ways.toLocaleString();
 
-  if (result.features.supercoin) {
-    el.premiumInj.textContent = String(
-      result.features.supercoin.totalLonghornsInjected,
-    );
-  }
+  updateHerdMeter(result, { pulse: true });
 
   if (el.featureWin && el.featureWinVal) {
     if (inFeature || freeRemaining > 0) {
@@ -142,9 +214,11 @@ async function presentFeaturesAfterSpin(result: SpinResult) {
     await showFeatureSplash({
       kind: 'free-games',
       title: `${result.features.freeGamesAwarded} FREE GAMES`,
-      subtitle: 'Longhorns are restless — reels stay hot',
-      ms: 2600,
+      subtitle:
+        'Premium Longhorns pay big. Supercoin on reel 1 spins a wheel that injects more Longhorns into every free spin.',
+      ms: 2800,
     });
+    setFeatureBanner('FREE GAMES · Land Supercoin on reel 1 to grow the Longhorn herd');
   }
 
   // Retrigger during free (not the buy package splash)
@@ -157,7 +231,7 @@ async function presentFeaturesAfterSpin(result: SpinResult) {
     await showFeatureSplash({
       kind: 'retrigger',
       title: `+${result.features.freeGamesAwarded} FREE GAMES`,
-      subtitle: 'Retrigger!',
+      subtitle: 'Retrigger! Herd size stays — keep landing Longhorns.',
       ms: 2000,
     });
   }
@@ -166,27 +240,54 @@ async function presentFeaturesAfterSpin(result: SpinResult) {
     await showFeatureSplash({
       kind: 'stampede',
       title: 'STAMPEDE!',
-      subtitle: '16,000 ways · guaranteed longhorn line',
+      subtitle: '16,000 ways · guaranteed Longhorn on every reel',
       ms: 2400,
     });
+    // Show the forced Longhorn line on the board
+    await reels.pulseLonghorns(1600);
+    audio.longhornWin();
   }
 
   // Supercoin during free (not already shown pre-spin on buy entry)
   if (result.features.supercoin && !result.features.buyEntered) {
     await showSupercoinWheel(result.features.supercoin);
+    updateHerdMeter(result, { pulse: true });
+    // Spotlight any Longhorns already visible this spin
+    if ((result.features.longhornsOnGrid ?? 0) > 0) {
+      await reels.pulseLonghorns(1200);
+    }
+  }
+
+  // Free-spin callout: make Longhorns on the grid obvious (skip if we just did stampede/supercoin)
+  if (
+    (result.mode === 'FREE' || result.mode === 'STAMPEDE') &&
+    !result.features.supercoin &&
+    !result.features.stampede &&
+    !result.features.buyEntered &&
+    (result.features.longhornsOnGrid ?? 0) > 0 &&
+    !autoplay
+  ) {
+    await showLonghornOnGridCallout(
+      result.features.longhornsOnGrid,
+      result.features.longhornHerd,
+    );
+    await reels.pulseLonghorns(900);
   }
 
   if (result.features.freeGamesEnded) {
     await showFeatureSplash({
       kind: 'free-end',
       title: 'FREE GAMES COMPLETE',
-      subtitle: `Feature total: ${fmt(featureWinSum)}`,
+      subtitle: `Feature total: ${fmt(featureWinSum)} · final herd ${result.features.longhornHerd}`,
       ms: 2400,
     });
     audio.freeGamesEnd();
     featureWinSum = 0;
     inFeature = false;
+    lastHerd = 0;
     if (el.featureWin) el.featureWin.style.display = 'none';
+    if (el.herdMeter) el.herdMeter.classList.remove('show');
+    setFeatureBanner(null);
   }
 }
 
@@ -203,7 +304,11 @@ async function doSpin(buyTier?: BuyTier) {
       await showFeatureSplash({
         kind: 'free-games',
         title: `BOUGHT ${opt?.freeGames ?? 8} FREE GAMES`,
-        subtitle: `${buyTier.toUpperCase()} · cost ${fmt(cost)}`,
+        subtitle: `${buyTier.toUpperCase()} · cost ${fmt(cost)}${
+          opt?.supercoinOnEntry
+            ? ' · Supercoin injects Longhorns before first spin'
+            : ''
+        }`,
         ms: 2200,
       });
     }
@@ -235,9 +340,13 @@ async function doSpin(buyTier?: BuyTier) {
       }
     }
 
-    // Buy entry supercoin wheel before reels
+    // Buy entry supercoin wheel before reels (herd already applied to this spin’s strips)
     if (result.features.buyEntered && result.features.supercoin) {
       await showSupercoinWheel(result.features.supercoin);
+      updateHerdMeter(result, { pulse: true });
+      setFeatureBanner(
+        `Herd ${result.features.longhornHerd} · Longhorns injected into free reels — spinning…`,
+      );
     }
 
     const antic = anticipationReels(result.grid);
@@ -247,17 +356,37 @@ async function doSpin(buyTier?: BuyTier) {
       nearMissScatter: nearMiss,
     });
 
+    // After reels stop: if Longhorns landed, flash them before win cycle
+    if (
+      (result.mode === 'FREE' ||
+        result.mode === 'STAMPEDE' ||
+        result.features.longhornHerd > 0) &&
+      (result.features.longhornsOnGrid ?? 0) > 0 &&
+      result.totalWin <= 0
+    ) {
+      // No win celebration path — still show the herd on reels briefly
+      void reels.pulseLonghorns(700);
+    }
+
     if (inFeature && el.featureWinVal) {
       el.featureWinVal.textContent = fmt(featureWinSum);
     }
+    updateMeters(result);
 
-    // Vegas celebration: every win FX → speedy count → BIG/MEGA/SUPER · Space/click skips
+    // Celebration: combos → count → BIG/MEGA/SUPER → TOTAL → Space back to game
     const { tier } = await runCelebration(reels, result, {
       lastWinEl: el.lastWin,
       featureWinEl: el.featureWinVal,
       featureWinSum: inFeature ? featureWinSum : undefined,
       turbo: autoplay,
     });
+
+    // Ambient stem: free games keep free bed; otherwise base
+    if (inFeature || result.features.freeGamesRemaining > 0) {
+      audio.setMusicStem('free');
+    } else {
+      audio.setMusicStem('base');
+    }
 
     setBalance(result.balance);
     updateMeters(result);
@@ -308,8 +437,9 @@ function showRules() {
       <li><strong>Wilds</strong> substitute for pay symbols (not scatters) and may apply ×2 or ×3 when they help a win.</li>
       <li><strong>Combos:</strong> each winning symbol group animates with an explainer (count · ways · amount · wild mult).</li>
       <li><strong>Scatters:</strong> 3/4/5 → 8/15/20 free games. In free games, 2+ scatters retrigger +5/8/15/20.</li>
-      <li><strong>Supercoin</strong> (reel 1 in free games): wheel adds longhorns to feature strips.</li>
-      <li><strong>Stampede:</strong> random expand + guaranteed longhorn line.</li>
+      <li><strong>Longhorn</strong> is the premium pay symbol. During free games the <strong>Longhorn herd</strong> meter shows how many extra Longhorns Supercoin has injected into the free-game reels (they stay for the whole feature).</li>
+      <li><strong>Supercoin</strong> (reel 1 in free games): lands → wheel → “+N Longhorns” fly into the reels. Watch the herd meter and “On reels now”.</li>
+      <li><strong>Stampede:</strong> random expand to 16,000 ways + guaranteed Longhorn on every reel (highlighted after the splash).</li>
       <li><strong>Buy:</strong> 22× / 80× / 145× bet → 8 / 15 / 20 free games (same math as natural).</li>
       <li><strong>Win celebrations (× your bet):</strong> BIG ≥15× · MEGA ≥40× · SUPER ≥80×. Speedy count-up; <strong>Space or click</strong> skips to the next celebration phase.</li>
     </ul>
@@ -403,9 +533,17 @@ async function boot() {
     console.error(e);
   }
 
-  window.addEventListener('pointerdown', () => audio.unlock(), { once: true });
+  const unlockAudio = () => {
+    audio.unlock();
+  };
+  window.addEventListener('pointerdown', unlockAudio, { once: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
+  toast('Click anywhere to enable sound');
 
-  el.spin.onclick = () => void doSpin();
+  el.spin.onclick = () => {
+    audio.unlock();
+    void doSpin();
+  };
   el.buy.onclick = () => showBuy();
   el.topup.onclick = () => showTopUp();
   el.rules.onclick = () => showRules();
@@ -436,6 +574,9 @@ async function boot() {
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
       e.preventDefault();
+      // During celebration SkipGate (capture) advances phases; ignore spin while busy
+      if (busy) return;
+      audio.unlock();
       void doSpin();
     }
   });

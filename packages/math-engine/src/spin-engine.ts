@@ -255,9 +255,12 @@ export class SpinEngine {
     let enteredFreeGames = false;
     let freeGamesEnded = false;
     let retriggerAwarded = 0;
+    /** Capture before session may be cleared on free end. */
+    let longhornHerd = freeSession?.longhornInjected ?? 0;
 
     if (inFree && freeSession) {
       freeSession.remaining -= 1;
+      longhornHerd = freeSession.longhornInjected;
       const table = this.math.retriggerByScatter;
       if (scatters >= 2 && table[scatters] != null) {
         retriggerAwarded = table[scatters]!;
@@ -282,6 +285,15 @@ export class SpinEngine {
           sessionBet: bet,
         };
         enteredFreeGames = true;
+        longhornHerd = 0;
+      }
+    }
+
+    // On-grid count: how many LONGHORN symbols the player can see this spin.
+    let longhornsOnGrid = 0;
+    for (const reel of grid) {
+      for (const s of reel) {
+        if (s === SymbolId.LONGHORN) longhornsOnGrid++;
       }
     }
 
@@ -296,6 +308,8 @@ export class SpinEngine {
       buyEntered,
       freeGamesEnded,
       sessionBet: freeSession?.sessionBet ?? null,
+      longhornHerd,
+      longhornsOnGrid,
     };
 
     // On buy first spin, surface retrigger amount via freeGamesAwarded if we need both:

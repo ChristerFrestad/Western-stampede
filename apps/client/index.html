@@ -118,25 +118,85 @@
  letter-spacing: 0.08em;
  }
  .meter strong {
- font-family: 'Bebas Neue', sans-serif;
- font-size: 1.4rem;
+ font-family: 'Bebas Neue', Impact, sans-serif;
+ font-size: 1.35rem;
  color: var(--gold);
+ letter-spacing: 0.04em;
+ }
+ .meter.herd {
+ display: none;
+ min-width: 150px;
+ border-color: #e8b84a88;
+ background: linear-gradient(145deg, #2a1c10ee, #120c08f0);
+ box-shadow: 0 0 0 0 #e8b84a00;
+ transition: box-shadow 0.3s, border-color 0.3s;
+ }
+ .meter.herd.show {
+ display: block;
+ }
+ .meter.herd.pulse {
+ animation: herd-meter-pulse 0.9s ease-out;
+ border-color: #ffe08a;
+ }
+ @keyframes herd-meter-pulse {
+ 0% { box-shadow: 0 0 0 0 #e8b84a88; transform: scale(1); }
+ 40% { box-shadow: 0 0 24px 4px #e8b84a99; transform: scale(1.04); }
+ 100% { box-shadow: 0 0 0 0 #e8b84a00; transform: scale(1); }
+ }
+ .meter.herd .herd-head {
+ display: flex;
+ align-items: center;
+ gap: 0.5rem;
+ }
+ .meter.herd img {
+ width: 36px;
+ height: 36px;
+ border-radius: 6px;
+ object-fit: cover;
+ border: 1px solid #e8b84a88;
+ }
+ .meter.herd .herd-meta {
+ flex: 1;
+ min-width: 0;
+ }
+ .meter.herd .herd-on-grid {
+ display: block;
+ font-size: 0.68rem;
+ color: var(--sand);
+ margin-top: 0.15rem;
+ letter-spacing: 0.04em;
+ text-transform: none;
+ font-weight: 600;
  }
  #feature-banner {
  align-self: center;
- background: #c44b2bee;
- color: white;
- font-family: 'Bebas Neue', sans-serif;
- font-size: 1.5rem;
- letter-spacing: 0.1em;
- padding: 0.5rem 1.5rem;
- border-radius: 8px;
+ min-height: 0;
+ text-align: center;
+ pointer-events: none;
  opacity: 0;
  transition: opacity 0.25s;
- pointer-events: none;
+ max-width: min(92vw, 520px);
+ margin: 0.35rem auto;
+ padding: 0.45rem 0.95rem;
+ border-radius: 999px;
+ border: 1px solid #e8b84a66;
+ background: #120c08ee;
+ color: #f0d080;
+ font-size: 0.8rem;
+ letter-spacing: 0.04em;
+ font-weight: 600;
  }
  #feature-banner.show {
  opacity: 1;
+ }
+ #feature-banner.alert {
+ border-color: #c44b2baa;
+ background: #c44b2bee;
+ color: #fff;
+ font-family: 'Bebas Neue', sans-serif;
+ font-size: 1.35rem;
+ letter-spacing: 0.1em;
+ border-radius: 8px;
  }
  footer {
  display: flex;
@@ -329,6 +389,75 @@
  color: #d4b896;
  font-size: 1rem;
  }
+ .fx-explain {
+ margin-top: 0.55rem;
+ font-size: 0.82rem;
+ line-height: 1.35;
+ color: #b8a890;
+ max-width: 36ch;
+ margin-left: auto;
+ margin-right: auto;
+ }
+ .fx-splash.inject {
+ background: radial-gradient(circle at 50% 55%, #4a3010cc, #000e);
+ }
+ .inject-card {
+ overflow: hidden;
+ position: relative;
+ }
+ .herd-fly-stage {
+ position: relative;
+ height: 160px;
+ margin-top: 0.75rem;
+ pointer-events: none;
+ }
+ .herd-fly {
+ position: absolute;
+ top: 0;
+ width: 52px;
+ height: 52px;
+ object-fit: cover;
+ border-radius: 10px;
+ border: 2px solid #e8b84a;
+ box-shadow: 0 4px 16px #000a;
+ animation-name: herd-dive;
+ animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+ animation-fill-mode: forwards;
+ opacity: 0;
+ }
+ @keyframes herd-dive {
+ 0% { transform: translateY(-20px) scale(0.6) rotate(-8deg); opacity: 0; }
+ 15% { opacity: 1; }
+ 100% { transform: translateY(120px) scale(0.35) rotate(12deg); opacity: 0.15; }
+ }
+ .fx-splash.callout {
+ background: transparent;
+ align-items: flex-start;
+ padding-top: 5.5rem;
+ }
+ .callout-card {
+ padding: 0.75rem 1.1rem;
+ border-color: #e8b84acc;
+ background: #120c08f2;
+ box-shadow: 0 8px 32px #000c, 0 0 24px #e8b84a44;
+ }
+ .callout-row {
+ display: flex;
+ align-items: center;
+ gap: 0.75rem;
+ text-align: left;
+ }
+ .callout-icon {
+ width: 48px;
+ height: 48px;
+ border-radius: 8px;
+ object-fit: cover;
+ border: 2px solid #e8b84a;
+ }
+ .callout-title {
+ font-size: 1.45rem !important;
+ line-height: 1.1;
+ }
  .wheel-stage {
  position: relative;
  width: min(72vw, 300px);
@@ -420,6 +549,10 @@
  #celebration-root.flash-super .cele-veil {
  background: radial-gradient(ellipse at 50% 40%, #4a1060ee 0%, #000f 72%);
  }
+ #celebration-root.flash-total .cele-veil,
+ .cele-veil.cele-total {
+ background: radial-gradient(ellipse at 50% 40%, #1a3a20ee 0%, #000e 72%);
+ }
  .cele-card {
  text-align: center;
  padding: 1.5rem 2rem 2rem;
@@ -446,6 +579,7 @@
  .cele-title-big { color: #ffd24a; }
  .cele-title-mega { color: #ff8a3a; }
  .cele-title-super { color: #e8a0ff; }
+ .cele-title-total { color: #7dffb0; text-shadow: 0 4px 28px #3dff8a88; }
  .cele-amount {
  font-family: 'Bebas Neue', Impact, sans-serif;
  font-size: clamp(2.8rem, 10vw, 4.5rem);
@@ -453,6 +587,12 @@
  margin-top: 0.5rem;
  letter-spacing: 0.04em;
  text-shadow: 0 2px 12px #000;
+ }
+ .cele-sub {
+ margin-top: 0.65rem;
+ font-size: 0.9rem;
+ letter-spacing: 0.08em;
+ color: #c4b8a0;
  }
  .cele-skip {
  margin-top: 1.1rem;
@@ -496,9 +636,15 @@
  <label>Ways</label>
  <strong id="ways-label">3,456</strong>
  </div>
- <div class="meter">
- <label>Longhorns injected</label>
+ <div class="meter herd" id="herd-meter">
+ <div class="herd-head">
+ <img src="/assets/symbols/LONGHORN.jpg" alt="Longhorn" />
+ <div class="herd-meta">
+ <label>Longhorn herd</label>
  <strong id="premium-inj">0</strong>
+ <span class="herd-on-grid" id="herd-on-grid">On reels: —</span>
+ </div>
+ </div>
  </div>
  <div class="meter" id="feature-win" style="display: none">
  <label>Feature win</label>

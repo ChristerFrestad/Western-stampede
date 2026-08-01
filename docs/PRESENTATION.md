@@ -16,11 +16,15 @@ Client-only presentation rules. Outcomes are always server-authoritative; skip n
 10. **Banners** — full banners for earned tiers; Space/click skip ladder.
 11. **Feature ceremony** — free enter / retrigger / stampede / supercoin / free end (order in `main.ts`).
 
-## Skip ladder
+## Skip ladder (one Space / click = one step)
 
-1. Abort remaining reel-win cycles → finish/start count-up.
-2. Jump to end of count-up.
-3. Advance banner (BIG → MEGA → SUPER) or dismiss.
+1. **reel_wins** → abort remaining combos → **counting**
+2. **counting** → snap to full amount → next phase
+3. **banner_big** → **banner_mega** → **banner_super** (only earned tiers)
+4. **total** — always shows **YOU WON** + spin total (and feature pot if free games)
+5. Leave **total** → back to idle board / next free spin
+
+Never jump from first Space straight to idle when tier banners or total remain.
 
 ## Win clarity rules
 

@@ -95,6 +95,13 @@ export interface SpinFeatures {
  freeGamesEnded: boolean;
  /** Bet locked for the active free-game session (if any). */
  sessionBet: number | null;
+ /**
+  * Total LONGHORN symbols injected into free-game strips via Supercoin
+  * (session cumulative). 0 outside free games.
+  */
+ longhornHerd: number;
+ /** How many LONGHORN symbols are visible on the grid this spin. */
+ longhornsOnGrid: number;
 }
 
 export interface SpinRequest {

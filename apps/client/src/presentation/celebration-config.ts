@@ -44,3 +44,24 @@ export const BANNER_LABEL: Record<BannerTier, string> = {
   mega: 'MEGA WIN',
   super: 'SUPER WIN',
 };
+
+/** Celebration phases for skip ladder (Space advances one step). */
+export type CelePhase =
+  | 'reel_wins'
+  | 'counting'
+  | 'banner_big'
+  | 'banner_mega'
+  | 'banner_super'
+  | 'total'
+  | 'done';
+
+/** Pure phase list for a win mult (unit-testable). */
+export function celebrationPhases(mult: number): CelePhase[] {
+  const phases: CelePhase[] = ['reel_wins', 'counting'];
+  if (mult >= WIN_TIERS.big) phases.push('banner_big');
+  if (mult >= WIN_TIERS.mega) phases.push('banner_mega');
+  if (mult >= WIN_TIERS.super) phases.push('banner_super');
+  phases.push('total');
+  phases.push('done');
+  return phases;
+}

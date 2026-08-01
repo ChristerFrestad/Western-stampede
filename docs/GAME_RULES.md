@@ -57,13 +57,21 @@ Retrigger during free games:
 | 4 | 15 |
 | 5 | 20 |
 
-### Supercoin
+### Supercoin → Longhorn herd
 
-During free games, Supercoin on **reel 1** awards a wheel of extra longhorn symbols injected into feature strips (cap in math config).
+During free games, **Supercoin** can land on **reel 1** (leftmost). That spins a presentation wheel:
+
+1. Wheel lands on a value (e.g. 8 / 12 / 20).
+2. That many **extra LONGHORN** symbols are **injected into the free-game strips** for the rest of the feature (capped in math config).
+3. The client shows a **Longhorn herd** meter (total injected) and how many Longhorns are **on the reels this spin**.
+
+Injected Longhorns are not a one-spin bonus — they permanently enrich the free-game reels until free games end. Higher herd ⇒ more Longhorns appear on subsequent free spins.
+
+Buy tiers **enhanced** / **premium** start with a Supercoin inject before the first free spin.
 
 ### Stampede
 
-Random expand of middle reels with a guaranteed longhorn five-of-a-kind path.
+Random expand of middle reels to **16,000 ways** with a guaranteed **Longhorn on every reel** (five-of-a-kind path).
 
 ## Buy bonus
 
@@ -84,11 +92,13 @@ Same free-game math as natural scatters.
 | **MEGA WIN** | ≥ **40×** bet | Full banner |
 | **SUPER WIN** | ≥ **80×** bet | Full banner |
 
-**Skip:** Press **Space** or **click** the screen during a celebration to advance:
+**Skip:** Press **Space** or **click** the screen during a celebration to advance **one step**:
 
-1. Finish reel combo cycle → start/finish count-up  
-2. Jump to next earned banner (BIG → MEGA → SUPER)  
-3. Dismiss and return to spin  
+1. Finish reel combo cycle → count-up  
+2. Finish count-up → first earned banner (if any)  
+3. Each further press advances BIG → MEGA → SUPER (only tiers you earned)  
+4. After the last tier banner (or after count-up if no tier) → **YOU WON** total for the spin  
+5. Press again on the total → back to the game  
 
 Outcomes are never changed by skip — only the animation phase.
 
