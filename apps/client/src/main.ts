@@ -22,6 +22,7 @@ const el = {
   plus: document.getElementById('btn-plus') as HTMLButtonElement,
   minus: document.getElementById('btn-minus') as HTMLButtonElement,
   auto: document.getElementById('btn-auto') as HTMLButtonElement,
+  turbo: document.getElementById('btn-turbo') as HTMLButtonElement | null,
   buy: document.getElementById('btn-buy') as HTMLButtonElement,
   topup: document.getElementById('btn-topup') as HTMLButtonElement,
   rules: document.getElementById('btn-rules') as HTMLButtonElement,
@@ -54,6 +55,8 @@ let config: GameConfigResponse;
 let busy = false;
 let phase: ClientPhase = 'idle';
 let autoplay = false;
+/** Faster presentations (autoplay forces turbo). */
+let turboMode = false;
 let freeRemaining = 0;
 let freeTotal = 0;
 /** Cumulative wins during the current free/buy feature (display only). */
@@ -364,7 +367,7 @@ async function presentFeaturesAfterSpin(result: SpinResult, turbo: boolean) {
  * (caller owns the free loop).
  */
 async function playOneSpin(buyTier?: BuyTier): Promise<SpinResult | null> {
-  const turbo = autoplay;
+  const turbo = turboMode || autoplay;
   phase = 'spinning';
 
   if (buyTier) {
@@ -520,26 +523,55 @@ function buyLinesFromConfig(): string {
     .join(' · ');
 }
 
+function paytableRowsHtml(): string {
+  const rows = (config.paytable ?? [])
+    .map((p) => {
+      const p3 = p.pays[3];
+      const p4 = p.pays[4];
+      const p5 = p.pays[5];
+      const src = `/assets/symbols/${p.symbol}.jpg`;
+      const fmtPay = (v: number | undefined) =>
+        v != null ? `${v}×` : '—';
+      return `<tr>
+        <td class="pt-sym"><img src="${src}" alt="" /><span>${p.symbol}</span></td>
+        <td>${fmtPay(p3)}</td>
+        <td>${fmtPay(p4)}</td>
+        <td>${fmtPay(p5)}</td>
+      </tr>`;
+    })
+    .join('');
+  return `
+    <div class="paytable-wrap">
+      <h3 class="rules-h3">Paytable (× total bet, per way)</h3>
+      <table class="paytable" aria-label="Symbol paytable">
+        <thead><tr><th>Symbol</th><th>3</th><th>4</th><th>5</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="paytable-note">Premium: <strong>Longhorn</strong> pays best · <strong>Wild</strong> substitutes (not scatter) · may show ×2/×3 · <strong>Scatter</strong> only for free games</p>
+    </div>`;
+}
+
 function showRules() {
   audio.click();
   const buyLine = buyLinesFromConfig();
   const rtp = Math.round((config.rtpTarget ?? 0.95) * 100);
   openModal(`
-    <h2>Western Stampede — Rules</h2>
+    <h2 id="rules-title">Western Stampede — Rules</h2>
     <p><strong>How you win (ways):</strong> Match 3+ of the same pay symbol on adjacent reels from the <em>left</em>. Multiple stacks on a reel create multiple ways. Each symbol type pays separately; all combination pays are summed.</p>
     <p>5 reels · 4-6-6-6-4 · <strong>3,456 ways</strong> (Stampede → 16,000).</p>
-    <ul>
-      <li><strong>Wilds</strong> substitute for pay symbols (not scatters) and may apply ×2 or ×3 when they help a win.</li>
-      <li><strong>Combos:</strong> each winning symbol group animates with an explainer (count · ways · amount · wild mult).</li>
-      <li><strong>Scatters:</strong> 3/4/5 → 8/15/20 free games. In free games, 2+ scatters retrigger +5/8/15/20.</li>
-      <li><strong>Longhorn</strong> is the premium pay symbol. During free games the <strong>Longhorn herd</strong> meter shows how many extra Longhorns Supercoin has injected into free-game reels.</li>
-      <li><strong>Supercoin</strong> (reel 1 in free games): lands → wheel → “+N Longhorns” stay in the strips for the feature.</li>
-      <li><strong>Stampede:</strong> random expand to 16,000 ways + guaranteed Longhorn on every reel.</li>
-      <li><strong>Buy:</strong> ${buyLine}. Same free-game math as natural scatters.</li>
-      <li><strong>Win celebrations (× your bet):</strong> BIG ≥15× · MEGA ≥40× · SUPER ≥80×. <strong>Space or click</strong> skips presentation phases (never changes outcomes).</li>
-      <li><strong>Target RTP:</strong> ~${rtp}% (math version ${config.version}).</li>
+    ${paytableRowsHtml()}
+    <h3 class="rules-h3">Features</h3>
+    <ul class="rules-list">
+      <li><strong>Wilds</strong> substitute for pay symbols (not scatters) and may apply ×2 or ×3 when they help a win — look for the gold ×N badge.</li>
+      <li><strong>Scatters:</strong> 3/4/5 → 8/15/20 free games. In free games, 2+ scatters retrigger +5/8/15/20. Anticipation lights reels when 2 are locked.</li>
+      <li><strong>Longhorn</strong> is the premium pay symbol. Supercoin injects more Longhorns into free strips — watch them rain into the reels.</li>
+      <li><strong>Supercoin</strong> (reel 1 in free): wheel → herd grows for the rest of the feature.</li>
+      <li><strong>Stampede:</strong> expand to 16,000 ways + Longhorns across the board.</li>
+      <li><strong>Buy:</strong> ${buyLine}.</li>
+      <li><strong>Celebrations (× bet):</strong> BIG ≥15× · MEGA ≥40× · SUPER ≥80×. TURBO speeds presentation. Space/click skips phases (never money).</li>
+      <li><strong>Target RTP:</strong> ~${rtp}% · math ${config.version}.</li>
     </ul>
-    <p style="color:#c44b2b;font-weight:600">Demo play only — not real-money gambling. Outcomes are server-authoritative.</p>
+    <p class="rules-warn">Demo play only — not real-money gambling. Outcomes are server-authoritative.</p>
     <div class="modal-actions">
       <button class="btn-spin" type="button" id="close-rules">Got it</button>
     </div>
@@ -721,8 +753,20 @@ async function boot() {
     autoplay = !autoplay;
     el.auto.textContent = autoplay ? 'STOP' : 'AUTO';
     el.auto.classList.toggle('btn-mute-off', autoplay);
+    el.auto.setAttribute('aria-pressed', autoplay ? 'true' : 'false');
     if (autoplay) void doSpin();
   };
+  if (el.turbo) {
+    el.turbo.onclick = () => {
+      ensureSound();
+      audio.click();
+      turboMode = !turboMode;
+      el.turbo!.classList.toggle('btn-turbo-on', turboMode);
+      el.turbo!.setAttribute('aria-pressed', turboMode ? 'true' : 'false');
+      el.turbo!.textContent = turboMode ? 'TURBO ON' : 'TURBO';
+      toast(turboMode ? 'Turbo: faster animations' : 'Turbo off');
+    };
+  }
   el.plus.onclick = () => {
     audio.click();
     const i = config.betSteps.indexOf(currentBet());

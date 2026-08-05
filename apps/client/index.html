@@ -756,6 +756,81 @@
  border: 2px solid #e8b84aaa;
  background: #120c08f2;
  box-shadow: 0 0 60px #e8b84a44, 0 24px 80px #000c;
+ position: relative;
+ overflow: hidden;
+ }
+ .cele-confetti {
+ pointer-events: none;
+ position: absolute;
+ inset: 0;
+ overflow: hidden;
+ }
+ .cele-confetti i {
+ position: absolute;
+ top: -12px;
+ left: calc(var(--x) * 1%);
+ width: 8px;
+ height: 12px;
+ background: var(--c, #ffd24a);
+ border-radius: 2px;
+ opacity: 0.9;
+ animation: cele-confetti-fall var(--d, 1.2s) linear forwards;
+ transform: rotate(20deg);
+ }
+ @keyframes cele-confetti-fall {
+ 0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+ 100% { transform: translateY(110vh) rotate(540deg); opacity: 0.15; }
+ }
+ .btn-turbo-on {
+ border-color: #ff8a3a !important;
+ color: #ffd24a !important;
+ box-shadow: 0 0 16px #ff8a3a55;
+ }
+ .paytable-wrap { margin: 1rem 0; }
+ .paytable {
+ width: 100%;
+ border-collapse: collapse;
+ font-size: 0.88rem;
+ }
+ .paytable th, .paytable td {
+ padding: 0.4rem 0.45rem;
+ border-bottom: 1px solid #e8b84a33;
+ text-align: center;
+ }
+ .paytable th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; }
+ .pt-sym {
+ display: flex;
+ align-items: center;
+ gap: 0.45rem;
+ text-align: left !important;
+ font-weight: 600;
+ color: var(--gold);
+ }
+ .pt-sym img {
+ width: 36px;
+ height: 30px;
+ object-fit: cover;
+ border-radius: 6px;
+ border: 1px solid #e8b84a66;
+ }
+ .paytable-note, .rules-warn {
+ font-size: 0.85rem;
+ color: var(--muted);
+ margin-top: 0.65rem;
+ }
+ .rules-warn { color: #e07050 !important; font-weight: 600; }
+ .rules-h3 {
+ font-family: 'Bebas Neue', sans-serif;
+ letter-spacing: 0.06em;
+ color: var(--gold);
+ margin: 1rem 0 0.4rem;
+ font-size: 1.15rem;
+ }
+ .rules-list { padding-left: 1.15rem; line-height: 1.45; }
+ .rules-list li { margin-bottom: 0.35rem; }
+ .modal {
+ max-height: min(88vh, 720px);
+ overflow-y: auto;
  }
  .cele-kicker {
  font-size: 0.75rem;
@@ -880,6 +955,7 @@
  <button class="btn-secondary" id="btn-minus" type="button" aria-label="Decrease bet">−</button>
  <button class="btn-spin" id="btn-spin" type="button">SPIN</button>
  <button class="btn-secondary" id="btn-plus" type="button" aria-label="Increase bet">+</button>
+ <button class="btn-secondary" id="btn-turbo" type="button" aria-pressed="false" title="Faster spin presentation">TURBO</button>
  <button class="btn-secondary" id="btn-auto" type="button">AUTO</button>
  <button class="btn-buy" id="btn-buy" type="button">BUY BONUS</button>
  <button class="btn-topup" id="btn-topup" type="button">TOP UP</button>

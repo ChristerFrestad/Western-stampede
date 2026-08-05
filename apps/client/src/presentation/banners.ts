@@ -56,7 +56,18 @@ export function createBannerOverlay(): BannerApi {
           : tier === 'mega'
             ? 'MASSIVE WIN'
             : 'BIG HIT';
+      const confetti =
+        tier === 'super' || tier === 'mega'
+          ? `<div class="cele-confetti" aria-hidden="true">${Array.from(
+              { length: tier === 'super' ? 48 : 28 },
+              (_, i) =>
+                `<i style="--i:${i};--x:${(i * 37) % 100};--d:${0.4 + (i % 7) * 0.12}s;--c:${
+                  ['#ffd24a', '#ff8a3a', '#e8a0ff', '#7dffb0', '#fff'][i % 5]
+                }"></i>`,
+            ).join('')}</div>`
+          : '';
       renderShell(`
+        ${confetti}
         <div class="cele-kicker">WESTERN STAMPEDE · ${sub}</div>
         <div class="cele-title cele-title-${tier}">${BANNER_LABEL[tier]}</div>
         <div class="cele-amount" id="cele-amount">${totalWin.toLocaleString()}</div>
