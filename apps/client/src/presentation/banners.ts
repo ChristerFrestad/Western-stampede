@@ -50,8 +50,14 @@ export function createBannerOverlay(): BannerApi {
       if (amt) amt.textContent = displayValue.toLocaleString();
     },
     showBanner(tier: BannerTier, totalWin: number) {
+      const sub =
+        tier === 'super'
+          ? 'LEGENDARY PAYOUT'
+          : tier === 'mega'
+            ? 'MASSIVE WIN'
+            : 'BIG HIT';
       renderShell(`
-        <div class="cele-kicker">WESTERN STAMPEDE</div>
+        <div class="cele-kicker">WESTERN STAMPEDE · ${sub}</div>
         <div class="cele-title cele-title-${tier}">${BANNER_LABEL[tier]}</div>
         <div class="cele-amount" id="cele-amount">${totalWin.toLocaleString()}</div>
       `);

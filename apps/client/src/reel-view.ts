@@ -471,7 +471,7 @@ export class ReelView {
     this.spinning = false;
   }
 
-  /** Visual anticipation boots: dim board, glow pending reels. */
+  /** Visual anticipation boots: dim board, glow pending reels, scatter progress. */
   private startAnticipationBoots(anticReels: Set<number>) {
     this.anticipActive = true;
     if (!this.anticipGraphics) {
@@ -485,37 +485,80 @@ export class ReelView {
     const originX = -boardW / 2;
     const originY = -boardH / 2;
 
-    // Dim non-antic reels
+    // Dim non-antic reels harder for casino tension
     for (let r = 0; r < this.reels.length; r++) {
       const reel = this.reels[r]!;
       if (!anticReels.has(r) && reel.spinning) {
-        reel.root.alpha = 0.55;
+        reel.root.alpha = 0.38;
       } else if (anticReels.has(r)) {
         reel.root.alpha = 1;
       }
     }
 
+    // Locked scatters on already-stopped reels
+    let lockedScatters = 0;
+    for (let r = 0; r < this.reels.length; r++) {
+      if (anticReels.has(r)) continue;
+      const reel = this.reels[r]!;
+      if (reel.spinning) continue;
+      for (const spr of reel.cells) {
+        const id = (spr as Sprite & { symbolId?: string }).symbolId;
+        if (id === 'SCATTER' || id === 'SUPERCOIN') lockedScatters++;
+      }
+    }
+
+    if (!this.pillText) {
+      /* title area used for scatter progress */
+    }
+    if (this.pillText) {
+      this.pillText.visible = true;
+      this.pillText.text = `SCATTER ${Math.min(2, lockedScatters)}/3 — FREE GAMES?`;
+      this.pillText.style.fill = 0xffd24a;
+    }
+
     const draw = () => {
       if (!this.anticipActive || !this.anticipGraphics) return;
-      const pulse = 0.45 + 0.55 * Math.sin(performance.now() / 180);
+      const pulse = 0.45 + 0.55 * Math.sin(performance.now() / 160);
       g.clear();
-      // Vignette plate
-      g.roundRect(originX - 28, originY - 28, boardW + 56, boardH + 56, 22);
-      g.stroke({ color: 0xff6a2a, width: 3, alpha: 0.25 + pulse * 0.35 });
+      // Hot orange vignette
+      g.roundRect(originX - 32, originY - 32, boardW + 64, boardH + 64, 24);
+      g.stroke({ color: 0xff6a2a, width: 4, alpha: 0.3 + pulse * 0.4 });
+      g.roundRect(originX - 20, originY - 20, boardW + 40, boardH + 40, 18);
+      g.stroke({ color: 0xffc14a, width: 2, alpha: 0.2 + pulse * 0.25 });
       for (const r of anticReels) {
         const reel = this.reels[r];
         if (!reel) continue;
         g.roundRect(
-          reel.x - 4,
-          reel.baseY - 4,
-          CELL_W + 8,
-          reel.height * CELL_H + 8,
-          10,
+          reel.x - 6,
+          reel.baseY - 6,
+          CELL_W + 12,
+          reel.height * CELL_H + 12,
+          12,
         );
-        g.stroke({ color: 0xffc14a, width: 3, alpha: pulse });
+        g.stroke({ color: 0xffc14a, width: 4, alpha: pulse });
+        // Inner heat
+        g.roundRect(
+          reel.x,
+          reel.baseY,
+          CELL_W,
+          reel.height * CELL_H,
+          8,
+        );
+        g.fill({ color: 0xff8a20, alpha: 0.06 + pulse * 0.06 });
       }
-      // Micro board scale pulse
-      this.board.scale.set(1 + 0.008 * pulse);
+      // Progress pips under board
+      for (let i = 0; i < 3; i++) {
+        const px = originX + boardW / 2 - 36 + i * 36;
+        const py = originY + boardH + 22;
+        g.circle(px, py, 8);
+        g.fill({
+          color: i < lockedScatters ? 0xffd24a : 0x3a2a18,
+          alpha: i < lockedScatters ? 0.95 : 0.55,
+        });
+        g.circle(px, py, 8);
+        g.stroke({ color: 0xe8b84a, width: 1.5, alpha: 0.8 });
+      }
+      this.board.scale.set(1 + 0.012 * pulse);
       requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
@@ -528,6 +571,66 @@ export class ReelView {
     for (const reel of this.reels) {
       reel.root.alpha = 1;
     }
+    if (this.pillText) {
+      this.pillText.visible = false;
+      this.pillText.text = '';
+    }
+  }
+
+  /**
+   * Stampede: board height expands to tall grid with gold shockwave.
+   * Call after layoutBoard already updated heights, or pass new heights/grid.
+   */
+  async playStampedeExpand(
+    heights: number[],
+    grid: SymbolId[][],
+    ms = 900,
+  ): Promise<void> {
+    this.layoutBoard(heights, grid);
+    const start = performance.now();
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        const ease = 1 - Math.pow(1 - t, 3);
+        const pulse = Math.sin(t * Math.PI);
+        this.fxLayer.removeChildren();
+        const maxRows = Math.max(...this.heights);
+        const boardW = 5 * CELL_W + 4 * REEL_GAP;
+        const boardH = maxRows * CELL_H;
+        const g = new Graphics();
+        const inflate = 20 + ease * 40;
+        g.roundRect(
+          -boardW / 2 - inflate,
+          -boardH / 2 - inflate,
+          boardW + inflate * 2,
+          boardH + inflate * 2,
+          20,
+        );
+        g.stroke({
+          color: 0xffe08a,
+          width: 5,
+          alpha: 0.9 * (1 - t * 0.5),
+        });
+        g.roundRect(
+          -boardW / 2 - 8,
+          -boardH / 2 - 8,
+          boardW + 16,
+          boardH + 16,
+          14,
+        );
+        g.stroke({ color: 0xc9a227, width: 2, alpha: 0.5 + pulse * 0.4 });
+        this.fxLayer.addChild(g);
+        this.board.scale.set(0.92 + ease * 0.1);
+        if (t < 1) requestAnimationFrame(tick);
+        else {
+          this.board.scale.set(1);
+          this.fxLayer.removeChildren();
+          resolve();
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+    await this.pulseLonghorns(Math.min(1200, ms));
   }
 
   private prepareStrip(

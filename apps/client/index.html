@@ -104,24 +104,28 @@
  pointer-events: none;
  }
  .meter {
- background: var(--panel);
- border: 1px solid #e8b84a44;
- border-radius: 10px;
- padding: 0.45rem 0.85rem;
- min-width: 120px;
+ background: linear-gradient(165deg, #241810f2, #120c08f5);
+ border: 1px solid #e8b84a66;
+ border-radius: 12px;
+ padding: 0.5rem 0.95rem;
+ min-width: 128px;
+ box-shadow: 0 4px 18px #0008, inset 0 1px 0 #e8b84a22;
  }
  .meter label {
  display: block;
- font-size: 0.65rem;
+ font-size: 0.68rem;
  color: var(--muted);
  text-transform: uppercase;
- letter-spacing: 0.08em;
+ letter-spacing: 0.1em;
+ font-weight: 600;
  }
  .meter strong {
  font-family: 'Bebas Neue', Impact, sans-serif;
- font-size: 1.35rem;
+ font-size: 1.55rem;
  color: var(--gold);
  letter-spacing: 0.04em;
+ text-shadow: 0 2px 10px #e8b84a44;
+ line-height: 1.1;
  }
  .meter.herd {
  display: none;
@@ -699,17 +703,20 @@
  animation: cele-in 0.2s ease-out;
  }
  #celebration-root.flash-big .cele-veil {
- background: radial-gradient(ellipse at 50% 40%, #5a4010ee 0%, #000e 72%);
+ background: radial-gradient(ellipse at 50% 40%, #ffd24a55 0%, #5a4010ee 40%, #000e 75%);
+ box-shadow: inset 0 0 80px #ffd24a33;
  }
  #celebration-root.flash-mega .cele-veil {
- background: radial-gradient(ellipse at 50% 40%, #6a2010ee 0%, #000f 72%);
+ background: radial-gradient(ellipse at 50% 40%, #ff8a3a66 0%, #6a2010ee 40%, #000f 75%);
+ box-shadow: inset 0 0 100px #ff6a2033;
  }
  #celebration-root.flash-super .cele-veil {
- background: radial-gradient(ellipse at 50% 40%, #4a1060ee 0%, #000f 72%);
+ background: radial-gradient(ellipse at 50% 40%, #c060ff77 0%, #4a1060ee 40%, #000f 75%);
+ box-shadow: inset 0 0 120px #a040ff44;
  }
  #celebration-root.flash-total .cele-veil,
  .cele-veil.cele-total {
- background: radial-gradient(ellipse at 50% 40%, #1a3a20ee 0%, #000e 72%);
+ background: radial-gradient(ellipse at 50% 40%, #3dff8a44 0%, #1a3a20ee 40%, #000e 75%);
  }
  .cele-card {
  text-align: center;
@@ -734,10 +741,31 @@
  text-shadow: 0 4px 24px #e8b84a88;
  }
  .cele-title-count { color: #f0d080; }
- .cele-title-big { color: #ffd24a; }
- .cele-title-mega { color: #ff8a3a; }
- .cele-title-super { color: #e8a0ff; }
- .cele-title-total { color: #7dffb0; text-shadow: 0 4px 28px #3dff8a88; }
+ .cele-title-big {
+ color: #ffd24a;
+ text-shadow: 0 0 24px #ffd24a88, 0 4px 12px #000a;
+ animation: cele-title-pop 0.45s cubic-bezier(0.2, 1.4, 0.3, 1);
+ }
+ .cele-title-mega {
+ color: #ff8a3a;
+ text-shadow: 0 0 28px #ff8a3aaa, 0 4px 14px #000a;
+ animation: cele-title-pop 0.5s cubic-bezier(0.2, 1.4, 0.3, 1);
+ }
+ .cele-title-super {
+ color: #e8a0ff;
+ text-shadow: 0 0 36px #c060ffcc, 0 4px 16px #000a;
+ animation: cele-title-pop 0.55s cubic-bezier(0.2, 1.4, 0.3, 1);
+ }
+ .cele-title-total {
+ color: #7dffb0;
+ text-shadow: 0 4px 28px #3dff8a88;
+ animation: cele-title-pop 0.4s ease-out;
+ }
+ @keyframes cele-title-pop {
+ 0% { transform: scale(0.6); opacity: 0; }
+ 60% { transform: scale(1.08); opacity: 1; }
+ 100% { transform: scale(1); }
+ }
  .cele-amount {
  font-family: 'Bebas Neue', Impact, sans-serif;
  font-size: clamp(2.8rem, 10vw, 4.5rem);

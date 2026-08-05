@@ -300,14 +300,20 @@ async function presentFeaturesAfterSpin(result: SpinResult, turbo: boolean) {
   }
 
   if (result.features.stampede) {
+    // Expand board first so player sees height change, then splash copy
+    await reels.playStampedeExpand(
+      result.heights,
+      result.grid,
+      turbo ? 500 : 1000,
+    );
     await showFeatureSplash({
       kind: 'stampede',
       title: 'STAMPEDE!',
-      subtitle: '16,000 ways · guaranteed Longhorn on every reel',
-      ms: 2400,
+      subtitle: '16,000 ways · Longhorns across the herd',
+      ms: turbo ? 1200 : 2200,
       turbo,
     });
-    await reels.pulseLonghorns(turbo ? 700 : 1600);
+    await reels.pulseLonghorns(turbo ? 700 : 1400);
     audio.longhornWin();
   }
 
