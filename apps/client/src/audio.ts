@@ -94,12 +94,22 @@ export class GameAudio {
     return this.ctx;
   }
 
+  /** True after first user gesture unlocked AudioContext. */
+  get isUnlocked(): boolean {
+    return this.unlocked;
+  }
+
   unlock() {
     const ctx = this.ensure();
     if (!ctx) return;
+    const first = !this.unlocked;
     this.unlocked = true;
     if (!this.windLoop) this.startWindBed();
     if (!this.bgmLoop) this.startBgm(this.musicStem === 'win' ? 'base' : this.musicStem);
+    if (first && !this.muted) {
+      // Soft confirm that cabinet audio is live (not a second toast from UI)
+      this.playBuf('chime_cluster', { gain: 0.25 });
+    }
   }
 
   getMusicStem(): MusicStem {

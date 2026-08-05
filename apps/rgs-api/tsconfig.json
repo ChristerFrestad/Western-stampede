@@ -7,8 +7,12 @@
  "moduleResolution": "NodeNext"
  },
  "include": ["src/**/*"],
- "references": [
- { "path": "../../packages/shared" },
- { "path": "../../packages/math-engine" }
- ]
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/rng-core" },
+    { "path": "../../packages/math-engine" },
+    { "path": "../../packages/audit-core" },
+    { "path": "../../packages/game-protocol" },
+    { "path": "../../packages/wallet-port" }
+  ]
 }

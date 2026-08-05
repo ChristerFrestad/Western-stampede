@@ -1,88 +1,105 @@
 # Deploy Western Stampede on Portainer
 
-## Stack from Git (recommended)
+## Hurtigstart (casino preset — spill med en gang)
 
-1. Portainer → **Home** → select a **healthy** Environment (green / connected)  
-2. **Stacks → Add stack**  
-3. Build method: **Repository**  
-4. **Repository URL:** `https://github.com/ChristerFrestad/Western-stampede`  
-5. **Reference / Branch:** `main` (not `master`)  
-6. **Compose path:** `docker-compose.yml`  
-7. If the repo is **private**: Repository authentication → GitHub PAT with `repo` (or `contents:read`)  
-8. Environment variables (optional):
+1. **Stacks → Add stack**  
+2. Build method: **Repository**  
+3. **Repository URL:** `https://github.com/ChristerFrestad/Western-stampede`  
+4. **Branch:** `main`  
+5. **Compose path:** `docker-compose.yml`  
+6. Private repo? → GitHub PAT med `repo` / `contents:read`  
+7. **Deploy the stack** (ingen env påkrevd)  
+8. Vent til containers er healthy  
 
-| Variable | Example | Notes |
-| --- | --- | --- |
-| `JWT_SECRET` | long random string | Production secret |
-| `ADMIN_TOKEN` | long random string | Header `x-admin-token` |
-| `RNG_PROVIDER` | `local` | |
-| `TOPUP_MODE` | `demo` | |
-| `REAL_MONEY` | `false` | |
-| `GUEST_START_BALANCE` | `10000` | |
-| `CORS_ORIGIN` | `*` | |
-| `VITE_API_URL` | *(empty)* | nginx proxies `/api` |
-| `WEB_PORT` | `18080` | UI host port |
-| `RGS_PORT` | `13000` | API host port (optional; UI uses nginx) |
+| Hva | URL |
+| --- | --- |
+| **Spill** | `http://<host>:18080` |
+| **Admin** | `http://<host>:18080/admin.html` |
+| API | `http://<host>:13000/health` |
 
-9. **Deploy the stack**  
-10. Open `http://<host>:18080`
+**Admin-token (default):** `dev-admin-token`
+
+Åpne Spill → automatisk guest → Spin.  
+Admin er valgfritt (metrics / RTP / warnings).
 
 ---
 
-## Error: “Unable to retrieve container” / “Failed loading environment”
+## Casino preset
 
-This is almost always **Portainer’s Docker environment**, not the game code.
+Compose default:
 
-### Fix checklist
+- `WS_PRESET=casino`
+- `GUEST_START_BALANCE=100000`
+- Memory store (ingen Postgres påkrevd)
+- Demo top-up, CSPRNG, ~95% RTP math
 
-1. **Environment online**  
-   Home → Environments → your Docker host must be **Connected** (not down/unreachable).
+Bytt secrets senere:
 
-2. **Local Docker**  
-   On the Portainer host: Docker Engine running, and Portainer can access the socket  
-   (`/var/run/docker.sock` or Agent).
+| Variable | Default | Anbefaling for delt nett |
+| --- | --- | --- |
+| `ADMIN_TOKEN` | `dev-admin-token` | lang tilfeldig streng |
+| `JWT_SECRET` | `dev-secret` | lang tilfeldig streng |
+| `WEB_PORT` | `18080` | endre ved port-kollisjon |
+| `RGS_PORT` | `13000` | endre ved port-kollisjon |
 
-3. **Wrong environment selected**  
-   Top-right / left nav: pick the same environment the stack was created under.
+---
 
-4. **Stale stack after agent rebuild**  
-   Delete the stack (optional: remove containers) → create a **new** stack from Git on `main`.
+## Profiles (valgfritt)
 
-5. **Agent (remote Docker)**  
-   Redeploy Portainer Agent; ensure network from Portainer CE/BE → agent port (usually 9001).
+| Profile | Compose | Use case |
+| --- | --- | --- |
+| **default / casino** | `docker-compose.yml` | Spill nå (anbefalt) |
+| **durable** | profile `durable` | + Postgres (+ Redis) |
+| **prod-like** | + `docker-compose.prod-like.yml` | 2× RGS, nginx LB, Postgres, Redis |
 
-6. **Do not put `ip:port` in one env default**  
-   Use separate simple vars (`RGS_PORT=13000`, `WEB_PORT=18080`) — already set this way in compose.
+### Durable
 
-### Quick host checks (SSH on Docker machine)
+| Variable | Example |
+| --- | --- |
+| `DATABASE_URL` | `postgres://ws:ws@postgres:5432/western_stampede` |
+| `REDIS_URL` | `redis://redis:6379` (valgfritt) |
+
+### Prod-like
 
 ```bash
-docker ps
-docker compose version
-# if stack name is westernstampede / western-stampede:
-docker ps -a | grep -i stampede
-docker logs <rgs-api-container> --tail 50
+docker compose -f docker-compose.yml -f docker-compose.prod-like.yml --profile prod-like config > stack.prod-like.yml
 ```
 
 ---
 
-## Common compose/deploy errors
+## Feilsøking
 
-| Error | Fix |
+| Problem | Fix |
 | --- | --- |
+| Unable to retrieve container | Portainer environment offline — se under |
 | `reference not found` | Branch **`main`** |
-| `docker-compose.yml: no such file` | Compose path **`docker-compose.yml`** |
-| `port is already allocated` | Set `WEB_PORT=18081` or free 18080 / 13000 |
-| Clone auth failed | GitHub credential / public repo |
-| Failed loading environment | See section above |
+| Port already allocated | `WEB_PORT=18081` / `RGS_PORT=13001` |
+| Client up, spin fails | Sjekk `rgs-api` healthy + `/health` |
+| Admin 403 | Feil token — default `dev-admin-token` |
 
-## Health
+### Portainer environment offline
 
-- Game: `http://host:18080`
-- API via UI: `http://host:18080/health`
-- Direct API: `http://host:13000/health`
+1. Home → Environments → Connected  
+2. Docker Engine / socket / Agent OK  
+3. Riktig environment valgt  
+4. Evt. slett stack og lag ny fra Git `main`
 
-## Notes
+```bash
+docker ps
+docker logs <rgs-api-container> --tail 80
+```
 
-- In-memory RGS (single replica).  
-- Demo mode until licensed + certified RNG.
+---
+
+## Etter deploy
+
+```bash
+curl -s http://<host>:13000/health
+# expect preset: "casino", guestStartBalance: 100000
+
+# Admin i nettleser:
+# http://<host>:18080/admin.html
+```
+
+Backup (durable): [docs/compliance/BACKUP_RESTORE.md](../docs/compliance/BACKUP_RESTORE.md)  
+Secrets: [docs/security/SECRET_ROTATION.md](../docs/security/SECRET_ROTATION.md)

@@ -10,3 +10,11 @@ coverage
 *.tsbuildinfo
 data/
 .pnpm-store
+
+lab-output/
+**/lab-output/
+
+test-results/
+lab-output/
+backups/
+

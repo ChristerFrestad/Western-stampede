@@ -22,7 +22,7 @@ async function runTier(tier: BuyTier, sessions: number, bet: number, seed: numbe
     let sessionDebit = 0;
 
     // Entry buy spin
-    let out = await engine.spin({
+    let out = engine.spinSync({
       bet,
       mode: 'BASE',
       buyTier: tier,
@@ -33,7 +33,7 @@ async function runTier(tier: BuyTier, sessions: number, bet: number, seed: numbe
     freeSession = out.nextFreeSession;
 
     while (freeSession && freeSession.remaining > 0) {
-      out = await engine.spin({
+      out = engine.spinSync({
         bet,
         mode: 'FREE',
         freeSession,

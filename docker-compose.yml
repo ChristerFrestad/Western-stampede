@@ -1,21 +1,71 @@
 # Western Stampede — Portainer / local Docker stack
-# UI: http://host:18080 (or WEB_PORT)
-# API: internal only by default; optional host port RGS_PORT (default 13000)
+#
+# Zero-config casino preset (default):
+#   1. Deploy this file only (no env required)
+#   2. Play:  http://<host>:18080
+#   3. Admin: http://<host>:18080/admin.html  (token: dev-admin-token)
+#
+# UI:  WEB_PORT  default 18080
+# API: RGS_PORT  default 13000
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ws}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ws}
+      POSTGRES_DB: ${POSTGRES_DB:-western_stampede}
+    ports:
+      - "${POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - ws_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ws
+    profiles:
+      - durable
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-16379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ws
+    profiles:
+      - durable
+      - prod-like
+
   rgs-api:
     build:
       context: .
       dockerfile: deploy/Dockerfile.rgs
     environment:
       PORT: "3000"
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      # casino = play immediately (100k guest balance, demo wallet, CSPRNG)
+      WS_PRESET: ${WS_PRESET:-casino}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
       RNG_PROVIDER: ${RNG_PROVIDER:-local}
       TOPUP_MODE: ${TOPUP_MODE:-demo}
-      GUEST_START_BALANCE: ${GUEST_START_BALANCE:-10000}
+      GUEST_START_BALANCE: ${GUEST_START_BALANCE:-100000}
       REAL_MONEY: ${REAL_MONEY:-false}
+      COMPLIANCE_MODE: ${COMPLIANCE_MODE:-false}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      DATABASE_URL: ${DATABASE_URL:-}
+      REDIS_URL: ${REDIS_URL:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-western-stampede-rgs}
     # Simple host:container mapping — avoids Portainer env parser issues with "ip:port" defaults
     ports:
       - "${RGS_PORT:-13000}:3000"
@@ -25,7 +75,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          "Promise.all([fetch('http://127.0.0.1:3000/health'),fetch('http://127.0.0.1:3000/ready')]).then(async([h,r])=>{const hj=await h.json();const rj=await r.json();process.exit(h.ok&&hj.ok&&r.ok&&rj.ready?0:1)}).catch(()=>process.exit(1))",
         ]
       interval: 15s
       timeout: 5s
@@ -53,3 +103,6 @@ services:
 networks:
   ws:
     driver: bridge
+
+volumes:
+  ws_pg:

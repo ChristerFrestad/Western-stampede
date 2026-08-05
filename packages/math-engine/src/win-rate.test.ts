@@ -20,7 +20,7 @@ describe('win rate smoke', () => {
     let hits = 0;
 
     for (let i = 0; i < spins; i++) {
-      const out = await engine.spin({
+      const out = engine.spinSync({
         bet,
         mode: freeSession ? 'FREE' : 'BASE',
         freeSession,
@@ -33,9 +33,9 @@ describe('win rate smoke', () => {
 
     const rtp = won / wagered;
     const hitRate = hits / spins;
-    // Demo math target ~90–100%; allow band for short sim variance
-    assert.ok(rtp > 0.75 && rtp < 1.15, `RTP out of band: ${rtp}`);
-    assert.ok(hitRate > 0.02 && hitRate < 0.35, `hitRate out of band: ${hitRate}`);
+    // Target ~95% (v1.3.0); 50k spins still has variance — band catches breakage only
+    assert.ok(rtp > 0.85 && rtp < 1.05, `RTP out of band: ${rtp}`);
+    assert.ok(hitRate > 0.15 && hitRate < 0.40, `hitRate out of band: ${hitRate}`);
   });
 
   it('buy standard session mean mult roughly near costX for demo balance', async () => {
@@ -49,11 +49,11 @@ describe('win rate smoke', () => {
       const engine = new SpinEngine(math, new SeededPrng(9000 + s));
       let freeSession: FreeGameSession | null = null;
       let sessionWin = 0;
-      let out = await engine.spin({ bet, mode: 'BASE', buyTier: 'standard' });
+      let out = engine.spinSync({ bet, mode: 'BASE', buyTier: 'standard' });
       sessionWin += out.result.totalWin;
       freeSession = out.nextFreeSession;
       while (freeSession && freeSession.remaining > 0) {
-        out = await engine.spin({ bet, mode: 'FREE', freeSession });
+        out = engine.spinSync({ bet, mode: 'FREE', freeSession });
         sessionWin += out.result.totalWin;
         freeSession = out.nextFreeSession;
       }
@@ -62,7 +62,22 @@ describe('win rate smoke', () => {
 
     const meanMult = totalWin / sessions / bet;
     const buyRtp = meanMult / costX;
-    // Not exact — ensure not broken (0 or 10x house)
-    assert.ok(buyRtp > 0.4 && buyRtp < 1.6, `buy RTP out of band: ${buyRtp} meanMult=${meanMult}`);
+    // v1.3.0 buy target ~95%; 800 sessions noisy but should not be broken
+    assert.ok(
+      buyRtp > 0.7 && buyRtp < 1.25,
+      `buy RTP out of band: ${buyRtp} meanMult=${meanMult}`,
+    );
   });
 });
+
+describe('math hash on results', () => {
+  it('attaches stable mathContentHash', () => {
+    const engine = new SpinEngine(defaultInternalMath(), new SeededPrng(1));
+    const out = engine.spinSync({ bet: 100, mode: 'BASE' });
+    assert.ok(out.result.mathContentHash);
+    assert.equal(out.result.mathContentHash!.length, 64);
+    const out2 = engine.spinSync({ bet: 100, mode: 'BASE' });
+    assert.equal(out.result.mathContentHash, out2.result.mathContentHash);
+  });
+});
+

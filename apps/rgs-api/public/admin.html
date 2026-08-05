@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Western Stampede</title>
+  <style>
+    :root {
+      --bg: #0f1410;
+      --panel: #1a221c;
+      --panel2: #232d26;
+      --border: #3d4f42;
+      --text: #e8efe6;
+      --muted: #8fa394;
+      --accent: #c4a35a;
+      --good: #5dbe7e;
+      --bad: #e05a5a;
+      --warn: #e0b05a;
+      --mono: "Cascadia Code", "Fira Code", ui-monospace, monospace;
+      --sans: "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--sans);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, #2a3520 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 100% 0%, #3a2a12 0%, transparent 45%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15, 20, 16, 0.85);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+    }
+    h1 span { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+    .auth {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    input, button, select {
+      font: inherit;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      padding: 0.45rem 0.65rem;
+    }
+    input { min-width: 12rem; }
+    input:focus, button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button {
+      cursor: pointer;
+      background: linear-gradient(180deg, #4a3a1a, #3a2e14);
+      border-color: #6a5430;
+      color: #f5e6c0;
+      font-weight: 600;
+    }
+    button.secondary {
+      background: var(--panel2);
+      color: var(--text);
+      border-color: var(--border);
+      font-weight: 500;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 3rem;
+      display: grid;
+      gap: 1rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.75rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.65rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .stat {
+      font-family: var(--mono);
+      font-size: 1.35rem;
+      font-weight: 600;
+    }
+    .stat small {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 400;
+      margin-top: 0.25rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .badge::before {
+      content: "";
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .badge.ok { color: var(--good); border-color: #2a5a3a; }
+    .badge.ok::before { background: var(--good); }
+    .badge.bad { color: var(--bad); border-color: #5a2a2a; }
+    .badge.bad::before { background: var(--bad); }
+    .badge.warn { color: var(--warn); border-color: #5a4a2a; }
+    .badge.warn::before { background: var(--warn); }
+    pre {
+      margin: 0;
+      padding: 0.85rem;
+      background: #0a0e0b;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: auto;
+      max-height: 320px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: #b8c9b4;
+    }
+    .warnings {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .warnings li {
+      padding: 0.45rem 0.65rem;
+      margin-bottom: 0.35rem;
+      background: rgba(224, 176, 90, 0.08);
+      border-left: 3px solid var(--warn);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.9rem;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .err {
+      color: var(--bad);
+      font-size: 0.9rem;
+      margin: 0.5rem 0 0;
+    }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding: 1rem;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Admin — Western Stampede <span>Ops Console</span></h1>
+      <p style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)">
+        Default demo token: <code style="color:var(--accent)">dev-admin-token</code>
+        · <a href="/" style="color:var(--accent)">← Back to game</a>
+      </p>
+    </div>
+    <div class="auth">
+      <label class="sr-only" for="base">API base</label>
+      <input id="base" type="url" placeholder="API base (empty = same origin)" title="Leave empty when using client nginx /api proxy" />
+      <input id="token" type="password" placeholder="x-admin-token" autocomplete="off" />
+      <label><input type="checkbox" id="autorefresh" /> Auto 10s</label>
+      <button type="button" id="btn-refresh">Refresh</button>
+      <button type="button" class="secondary" id="btn-flush">Flush OTLP</button>
+    </div>
+  </header>
+  <main>
+    <div class="row" id="status-row">
+      <span class="badge" id="badge-ready">—</span>
+      <span class="badge" id="badge-store">store</span>
+      <span class="badge" id="badge-rl">rate-limit</span>
+      <span id="updated" style="color:var(--muted);font-size:0.85rem"></span>
+    </div>
+    <p class="err" id="error" hidden></p>
+
+    <div class="grid" id="kpi">
+      <div class="card"><h2>Ready</h2><div class="stat" id="k-ready">—</div></div>
+      <div class="card"><h2>Store</h2><div class="stat" id="k-store">—</div></div>
+      <div class="card"><h2>Rate limit</h2><div class="stat" id="k-rl">—</div></div>
+      <div class="card"><h2>RNG draws</h2><div class="stat" id="k-draws">—</div></div>
+      <div class="card"><h2>Wagered</h2><div class="stat" id="k-wagered">—</div></div>
+      <div class="card"><h2>Won</h2><div class="stat" id="k-won">—</div></div>
+      <div class="card"><h2>Empirical RTP</h2><div class="stat" id="k-rtp">—</div></div>
+      <div class="card"><h2>Spin p95</h2><div class="stat" id="k-p95">—</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Deploy warnings</h2>
+      <ul class="warnings" id="warnings"><li style="border-color:var(--border);background:transparent;color:var(--muted)">Load ops to see warnings</li></ul>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <h2>Version</h2>
+        <pre id="out-version">{}</pre>
+      </div>
+      <div class="card">
+        <h2>Ops snapshot</h2>
+        <pre id="out-ops">{}</pre>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Metrics (super-admin)</h2>
+      <pre id="out-metrics">{}</pre>
+    </div>
+  </main>
+  <footer>
+    Token stays in sessionStorage on this browser only.
+    Docs: <a href="/">game</a> · health via API
+  </footer>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const storeKey = 'ws-ops-token';
+    const baseKey = 'ws-ops-base';
+
+    $('token').value = sessionStorage.getItem(storeKey) || 'dev-admin-token';
+    $('base').value = sessionStorage.getItem(baseKey) || '';
+
+    function apiBase() {
+      const b = $('base').value.trim().replace(/\/$/, '');
+      return b || '';
+    }
+
+    function url(path) {
+      const base = apiBase();
+      if (!base) return path.startsWith('/') ? path : '/' + path;
+      return base + (path.startsWith('/') ? path : '/' + path);
+    }
+
+    async function jget(path, opts = {}) {
+      const headers = { ...(opts.headers || {}) };
+      const tok = $('token').value.trim();
+      if (tok) headers['x-admin-token'] = tok;
+      const res = await fetch(url(path), { ...opts, headers });
+      const text = await res.text();
+      let body;
+      try { body = JSON.parse(text); } catch { body = { raw: text }; }
+      if (!res.ok && res.status !== 503) {
+        throw new Error(`${path} → ${res.status} ${JSON.stringify(body)}`);
+      }
+      return { status: res.status, body };
+    }
+
+    function badge(el, ok, label) {
+      el.textContent = label;
+      el.className = 'badge ' + (ok === true ? 'ok' : ok === false ? 'bad' : 'warn');
+    }
+
+    function fmt(n) {
+      if (n == null || Number.isNaN(n)) return '—';
+      if (typeof n === 'number' && Math.abs(n) >= 1000) return n.toLocaleString();
+      if (typeof n === 'number' && n < 2 && n > 0) return n.toFixed(4);
+      return String(n);
+    }
+
+    async function refresh() {
+      $('error').hidden = true;
+      sessionStorage.setItem(storeKey, $('token').value);
+      sessionStorage.setItem(baseKey, $('base').value);
+      try {
+        const [ver, health, ready] = await Promise.all([
+          jget('/version'),
+          jget('/health'),
+          jget('/ready'),
+        ]);
+        $('out-version').textContent = JSON.stringify(ver.body, null, 2);
+        badge($('badge-ready'), ready.body.ready === true, ready.body.ready ? 'ready' : 'not ready');
+        badge($('badge-store'), true, 'store: ' + (health.body.store || ready.body.store || '?'));
+        badge($('badge-rl'), true, 'rl: ' + (health.body.rateLimit || ready.body.rateLimit || '?'));
+        $('k-ready').innerHTML = (ready.body.ready ? 'YES' : 'NO') +
+          '<small>rng ' + (ready.body.rngStatus || health.body.rng?.status || '') + '</small>';
+        $('k-store').innerHTML = fmt(health.body.store) + '<small>ok=' + ready.body.storeOk + '</small>';
+        $('k-rl').textContent = health.body.rateLimit || ready.body.rateLimit || '—';
+        $('k-draws').textContent = fmt(health.body.rng?.totalDraws);
+
+        let ops = null;
+        let metrics = null;
+        if ($('token').value.trim()) {
+          try {
+            ops = await jget('/api/v1/admin/ops');
+            $('out-ops').textContent = JSON.stringify(ops.body, null, 2);
+            const w = ops.body.warnings || [];
+            const ul = $('warnings');
+            ul.innerHTML = '';
+            if (!w.length) {
+              ul.innerHTML = '<li style="border-color:var(--good);color:var(--good)">No deploy warnings</li>';
+            } else {
+              w.forEach((msg) => {
+                const li = document.createElement('li');
+                li.textContent = msg;
+                ul.appendChild(li);
+              });
+            }
+            if (ops.body.rng) $('k-draws').textContent = fmt(ops.body.rng.totalDraws);
+            if (ops.body.rateLimit) $('k-rl').textContent = ops.body.rateLimit.backend;
+          } catch (e) {
+            $('out-ops').textContent = String(e.message || e);
+          }
+          try {
+            metrics = await jget('/api/v1/admin/metrics');
+            $('out-metrics').textContent = JSON.stringify(metrics.body, null, 2);
+            const m = metrics.body;
+            $('k-wagered').textContent = fmt(m.wagered);
+            $('k-won').textContent = fmt(m.won);
+            $('k-rtp').innerHTML = fmt(m.empiricalRtp) +
+              (m.telemetry?.latencyMs ? '<small>spins ' + fmt(m.telemetry.spins) + '</small>' : '');
+            $('k-p95').innerHTML = m.telemetry?.latencyMs
+              ? fmt(m.telemetry.latencyMs.p95) + ' ms<small>p50 ' + fmt(m.telemetry.latencyMs.p50) + '</small>'
+              : '—';
+          } catch (e) {
+            $('out-metrics').textContent = String(e.message || e);
+          }
+        } else {
+          $('out-ops').textContent = 'Enter admin token for /api/v1/admin/ops';
+          $('out-metrics').textContent = 'Enter admin token for metrics';
+        }
+        $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      } catch (e) {
+        $('error').hidden = false;
+        $('error').textContent = String(e.message || e);
+      }
+    }
+
+    $('btn-refresh').addEventListener('click', refresh);
+    $('btn-flush').addEventListener('click', async () => {
+      try {
+        const r = await jget('/api/v1/admin/telemetry/flush', { method: 'POST' });
+        alert('OTLP flush: ' + JSON.stringify(r.body));
+        refresh();
+      } catch (e) {
+        alert(String(e.message || e));
+      }
+    });
+
+    let timer = null;
+    $('autorefresh').addEventListener('change', () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+      if ($('autorefresh').checked) timer = setInterval(refresh, 10_000);
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

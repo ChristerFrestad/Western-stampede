@@ -5,6 +5,41 @@ function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
+/** Space / stage click advances presentation only (never money). */
+function waitOrSkip(ms: number, turbo = false): Promise<boolean> {
+  const duration = turbo ? Math.floor(ms * 0.42) : ms;
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (skipped: boolean) => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', onPtr, true);
+      resolve(skipped);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' && e.key !== ' ') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA'))
+        return;
+      e.preventDefault();
+      e.stopPropagation();
+      audio.click();
+      finish(true);
+    };
+    const onPtr = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('footer, header, .modal, button, select, a')) return;
+      e.stopPropagation();
+      audio.click();
+      finish(true);
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', onPtr, true);
+    window.setTimeout(() => finish(false), duration);
+  });
+}
+
 function ensureLayer(): HTMLDivElement {
   let layer = document.getElementById('fx-layer') as HTMLDivElement | null;
   if (!layer) {
@@ -15,59 +50,86 @@ function ensureLayer(): HTMLDivElement {
   return layer;
 }
 
+function showSkipHint(layer: HTMLElement) {
+  let hint = layer.querySelector('.fx-skip-hint') as HTMLElement | null;
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.className = 'fx-skip-hint';
+    hint.textContent = 'Space / click to skip';
+    layer.appendChild(hint);
+  }
+}
+
 export async function showFeatureSplash(opts: {
-  kind: 'free-games' | 'retrigger' | 'stampede' | 'free-end';
+  kind: 'free-games' | 'retrigger' | 'stampede' | 'free-end' | 'buy';
   title: string;
   subtitle?: string;
   ms?: number;
+  turbo?: boolean;
 }): Promise<void> {
   const layer = ensureLayer();
   const ms = opts.ms ?? 2400;
   const splashClass =
-    opts.kind === 'free-games' || opts.kind === 'retrigger'
+    opts.kind === 'free-games' || opts.kind === 'retrigger' || opts.kind === 'buy'
       ? 'fx-splash free'
       : opts.kind === 'stampede'
         ? 'fx-splash stampede'
         : 'fx-splash end';
 
+  const kicker =
+    opts.kind === 'free-end'
+      ? 'FEATURE COMPLETE'
+      : opts.kind === 'buy'
+        ? 'BONUS BUY'
+        : 'FEATURE';
+
   layer.innerHTML = `
     <div class="${splashClass}">
       <div class="fx-card">
-        <div class="fx-kicker">${opts.kind === 'free-end' ? 'FEATURE COMPLETE' : 'FEATURE'}</div>
+        <div class="fx-kicker">${kicker}</div>
         <div class="fx-title">${opts.title}</div>
         ${opts.subtitle ? `<div class="fx-sub">${opts.subtitle}</div>` : ''}
       </div>
     </div>
   `;
   layer.classList.add('show');
+  showSkipHint(layer);
 
-  if (opts.kind === 'free-games' || opts.kind === 'retrigger') audio.freeGames();
+  if (opts.kind === 'free-games' || opts.kind === 'retrigger' || opts.kind === 'buy')
+    audio.freeGames();
   else if (opts.kind === 'stampede') audio.stampede();
   else audio.winSmall();
 
-  await sleep(ms);
+  await waitOrSkip(ms, opts.turbo);
   layer.classList.remove('show');
   layer.innerHTML = '';
 }
 
 /**
- * Supercoin wheel overlay. Server already chose wheelValue;
- * we animate to a matching segment for presentation only.
+ * Supercoin wheel. Server already chose wheelValue;
+ * client lands matching segment for presentation only.
  */
-export async function showSupercoinWheel(result: SupercoinResult): Promise<void> {
+export async function showSupercoinWheel(
+  result: SupercoinResult,
+  opts?: { turbo?: boolean },
+): Promise<void> {
+  const turbo = opts?.turbo ?? false;
   const layer = ensureLayer();
   const values = [5, 8, 10, 12, 15, 20, 25];
   let idx = values.indexOf(result.wheelValue);
   if (idx < 0) {
     idx = values.reduce(
       (best, v, i) =>
-        Math.abs(v - result.wheelValue) < Math.abs(values[best]! - result.wheelValue) ? i : best,
+        Math.abs(v - result.wheelValue) < Math.abs(values[best]! - result.wheelValue)
+          ? i
+          : best,
       0,
     );
   }
 
   const seg = 360 / values.length;
   const targetDeg = 360 * 4 + (360 - (idx * seg + seg / 2));
+  const spinMs = turbo ? 1400 : 3200;
 
   layer.innerHTML = `
     <div class="fx-splash wheel">
@@ -94,21 +156,32 @@ export async function showSupercoinWheel(result: SupercoinResult): Promise<void>
     </div>
   `;
   layer.classList.add('show');
+  showSkipHint(layer);
+  audio.duckMusic(0.25, spinMs + 800);
 
   const disc = document.getElementById('wheel-disc') as HTMLDivElement;
-  await sleep(50);
-  disc.style.transition = 'transform 3.2s cubic-bezier(0.12, 0.75, 0.12, 1)';
+  await sleep(40);
+  disc.style.transition = `transform ${spinMs / 1000}s cubic-bezier(0.12, 0.75, 0.12, 1)`;
   disc.style.transform = `rotate(${targetDeg}deg)`;
 
   let ticks = 0;
-  const tickIv = window.setInterval(() => {
-    audio.wheelTick();
-    ticks++;
-    if (ticks > 28) clearInterval(tickIv);
-  }, 90);
+  const tickIv = window.setInterval(
+    () => {
+      audio.wheelTick();
+      ticks++;
+      if (ticks > (turbo ? 12 : 28)) clearInterval(tickIv);
+    },
+    turbo ? 70 : 90,
+  );
 
-  await sleep(3300);
+  const skipped = await waitOrSkip(spinMs + 80, false);
   clearInterval(tickIv);
+  if (skipped) {
+    disc.style.transition = 'transform 0.15s ease-out';
+    disc.style.transform = `rotate(${targetDeg}deg)`;
+    await sleep(160);
+  }
+
   audio.wheelLand();
   audio.coin();
 
@@ -117,25 +190,24 @@ export async function showSupercoinWheel(result: SupercoinResult): Promise<void>
     res.innerHTML = `<strong>+${result.awardedLonghorns}</strong> Longhorns added · herd <strong>${result.totalLonghornsInjected}</strong>`;
   }
 
-  await sleep(1400);
+  await waitOrSkip(turbo ? 600 : 1400, turbo);
   layer.classList.remove('show');
   layer.innerHTML = '';
 
-  // Inject ceremony (flying herd into the cabinet)
-  await showLonghornInject(result);
+  await showLonghornInject(result, { turbo });
 }
 
-/**
- * Visual “Longhorns enter the reels” after Supercoin wheel.
- * Pure presentation — math already applied on server strips.
- */
-export async function showLonghornInject(result: SupercoinResult): Promise<void> {
+export async function showLonghornInject(
+  result: SupercoinResult,
+  opts?: { turbo?: boolean },
+): Promise<void> {
+  const turbo = opts?.turbo ?? false;
   const layer = ensureLayer();
   const n = Math.min(14, Math.max(5, result.awardedLonghorns));
   const icons = Array.from({ length: n }, (_, i) => {
     const left = 12 + Math.random() * 76;
-    const delay = i * 70;
-    const dur = 900 + Math.random() * 500;
+    const delay = i * (turbo ? 40 : 70);
+    const dur = (turbo ? 500 : 900) + Math.random() * 400;
     return `<img class="herd-fly" src="/assets/symbols/LONGHORN.jpg" alt=""
       style="left:${left}%; animation-delay:${delay}ms; animation-duration:${dur}ms" />`;
   }).join('');
@@ -152,15 +224,15 @@ export async function showLonghornInject(result: SupercoinResult): Promise<void>
     </div>
   `;
   layer.classList.add('show');
+  showSkipHint(layer);
   audio.longhornLand();
   audio.coin();
 
-  // Count herd meter text up
   const totalEl = document.getElementById('inject-total');
   const from = Math.max(0, result.totalLonghornsInjected - result.awardedLonghorns);
   const to = result.totalLonghornsInjected;
   const start = performance.now();
-  const dur = 1100;
+  const dur = turbo ? 500 : 1100;
   await new Promise<void>((resolve) => {
     const tick = () => {
       const t = Math.min(1, (performance.now() - start) / dur);
@@ -175,19 +247,22 @@ export async function showLonghornInject(result: SupercoinResult): Promise<void>
     requestAnimationFrame(tick);
   });
 
-  // Extra horn hits while icons fly
-  for (let i = 0; i < Math.min(5, result.awardedLonghorns); i++) {
-    window.setTimeout(() => audio.longhornLand(), 120 + i * 140);
+  for (let i = 0; i < Math.min(turbo ? 2 : 5, result.awardedLonghorns); i++) {
+    window.setTimeout(() => audio.longhornLand(), 80 + i * 120);
   }
 
-  await sleep(900);
+  await waitOrSkip(turbo ? 400 : 900, turbo);
   layer.classList.remove('show');
   layer.innerHTML = '';
 }
 
-/** Compact toast-style callout for on-grid Longhorn count after a free spin. */
-export async function showLonghornOnGridCallout(count: number, herd: number): Promise<void> {
+export async function showLonghornOnGridCallout(
+  count: number,
+  herd: number,
+  opts?: { turbo?: boolean },
+): Promise<void> {
   if (count <= 0 && herd <= 0) return;
+  if (opts?.turbo) return; // skip callouts in turbo/auto
   const layer = ensureLayer();
   layer.innerHTML = `
     <div class="fx-splash callout">
@@ -203,8 +278,7 @@ export async function showLonghornOnGridCallout(count: number, herd: number): Pr
     </div>
   `;
   layer.classList.add('show');
-  if (count > 0) audio.longhornLand();
-  await sleep(count > 0 ? 1600 : 900);
+  await waitOrSkip(1400, false);
   layer.classList.remove('show');
   layer.innerHTML = '';
 }

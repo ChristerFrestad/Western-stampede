@@ -17,16 +17,15 @@ import {
   hasSupercoinOnReel0,
   type WildMultCell,
 } from './evaluate-ways.js';
+import { mathContentHash } from './math-hash.js';
 import type { IRngProvider } from './rng.js';
 
 export interface FreeGameSession {
   remaining: number;
   totalAwarded: number;
-  /** Extra LONGHORN symbols injected into FG strips (Supercoin). */
   longhornInjected: number;
   stampedeBoost: number;
   buyTier: BuyTier | null;
-  /** Bet locked for the entire free-game session. */
   sessionBet: number;
 }
 
@@ -57,7 +56,6 @@ function windowFromStop(
   return out;
 }
 
-/** Replace low-pay positions with LONGHORN (does not lengthen strips unboundedly). */
 export function injectLonghorns(
   strips: SymbolId[][],
   count: number,
@@ -88,21 +86,30 @@ export function injectLonghorns(
   return copy;
 }
 
-async function pickWildMult(
+function pickWildMult(
   rng: IRngProvider,
   w2: number,
   w3: number,
-): Promise<number> {
+  cellTag: string,
+): number {
   const t = w2 + w3;
-  const r = await rng.nextInt(t);
+  const r = rng.nextInt(t, `wild.mult.${cellTag}`);
   return r < w2 ? 2 : 3;
 }
 
+/**
+ * Server-authoritative spin engine.
+ * Hot path is fully synchronous (RNG + evaluation) for multi-million spin sims.
+ */
 export class SpinEngine {
+  private cachedMathHash: string;
+
   constructor(
     private math: InternalMathConfig = defaultInternalMath(),
     private rng: IRngProvider,
-  ) {}
+  ) {
+    this.cachedMathHash = mathContentHash(math);
+  }
 
   getMath(): InternalMathConfig {
     return this.math;
@@ -110,6 +117,7 @@ export class SpinEngine {
 
   setMath(math: InternalMathConfig): void {
     this.math = math;
+    this.cachedMathHash = mathContentHash(math);
   }
 
   getRng(): IRngProvider {
@@ -120,7 +128,8 @@ export class SpinEngine {
     this.rng = rng;
   }
 
-  async spin(input: SpinEngineInput): Promise<SpinEngineOutput> {
+  /** Preferred: zero Promise overhead. */
+  spinSync(input: SpinEngineInput): SpinEngineOutput {
     const { bet } = input;
     let freeSession = input.freeSession ? { ...input.freeSession } : null;
     let debitAmount = 0;
@@ -130,7 +139,6 @@ export class SpinEngine {
     let entrySupercoin: SupercoinResult | null = null;
     let mode: GameMode = 'BASE';
 
-    // --- Buy bonus entry ---
     if (input.buyTier && !freeSession) {
       const opt = this.math.buyOptions.find((b) => b.tier === input.buyTier);
       if (!opt) throw new Error(`Unknown buy tier: ${input.buyTier}`);
@@ -147,9 +155,8 @@ export class SpinEngine {
         sessionBet: bet,
       };
 
-      // G1: Supercoin on entry BEFORE first free strip draw
       if (opt.supercoinOnEntry) {
-        const sc = await this.rollSupercoin(freeSession);
+        const sc = this.rollSupercoin(freeSession);
         freeSession = sc.session;
         entrySupercoin = sc.result;
       }
@@ -174,7 +181,10 @@ export class SpinEngine {
     const baseStampede =
       this.math.features.stampedeChance + (freeSession?.stampedeBoost ?? 0);
     const stampedeChance = inFree ? baseStampede * 0.4 : baseStampede;
-    if (input.forceStampede || (await this.rollChance(stampedeChance))) {
+    if (
+      input.forceStampede ||
+      this.rollChance(stampedeChance, 'feature.stampede')
+    ) {
       stampede = true;
       heights = [...this.math.stampedeHeights];
       mode = 'STAMPEDE';
@@ -186,7 +196,7 @@ export class SpinEngine {
 
     const stops: number[] = [];
     for (let r = 0; r < 5; r++) {
-      stops.push(await this.rng.nextInt(strips[r]!.length));
+      stops.push(this.rng.nextInt(strips[r]!.length, `reel.stop.${r}`));
     }
 
     let grid = strips.map((strip, r) =>
@@ -208,10 +218,11 @@ export class SpinEngine {
           wildMults.push({
             reel: r,
             row,
-            mult: await pickWildMult(
+            mult: pickWildMult(
               this.rng,
               this.math.features.wildMult2Weight,
               this.math.features.wildMult3Weight,
+              `${r}.${row}`,
             ),
           });
         }
@@ -233,10 +244,9 @@ export class SpinEngine {
       totalWin = wins.reduce((a, w) => a + w.amount, 0);
     }
 
-    // Natural Supercoin on reel 0 during free (stacks with entry supercoin)
     let supercoin: SupercoinResult | null = entrySupercoin;
     if (inFree && freeSession && hasSupercoinOnReel0(grid)) {
-      const sc = await this.rollSupercoin(freeSession);
+      const sc = this.rollSupercoin(freeSession);
       freeSession = sc.session;
       if (supercoin) {
         supercoin = {
@@ -255,7 +265,6 @@ export class SpinEngine {
     let enteredFreeGames = false;
     let freeGamesEnded = false;
     let retriggerAwarded = 0;
-    /** Capture before session may be cleared on free end. */
     let longhornHerd = freeSession?.longhornInjected ?? 0;
 
     if (inFree && freeSession) {
@@ -289,7 +298,6 @@ export class SpinEngine {
       }
     }
 
-    // On-grid count: how many LONGHORN symbols the player can see this spin.
     let longhornsOnGrid = 0;
     for (const reel of grid) {
       for (const s of reel) {
@@ -312,14 +320,11 @@ export class SpinEngine {
       longhornsOnGrid,
     };
 
-    // On buy first spin, surface retrigger amount via freeGamesAwarded if we need both:
-    // buyEntered uses package size for splash; client shows retrigger if freeGamesTotal > package
-    if (buyEntered && retriggerAwarded > 0) {
-      // keep freeGamesAwarded as package; totalAwarded already includes retrigger
-    }
+    void retriggerAwarded;
 
     const result: Omit<SpinResult, 'roundId' | 'balance'> = {
       mathVersion: this.math.version,
+      mathContentHash: this.cachedMathHash,
       mode: stampede ? 'STAMPEDE' : inFree || buyEntered ? 'FREE' : 'BASE',
       bet: payBet,
       grid,
@@ -339,11 +344,16 @@ export class SpinEngine {
     };
   }
 
-  private async rollSupercoin(
+  /** Async wrapper for RGS call sites that prefer Promise. */
+  async spin(input: SpinEngineInput): Promise<SpinEngineOutput> {
+    return this.spinSync(input);
+  }
+
+  private rollSupercoin(
     session: FreeGameSession,
-  ): Promise<{ session: FreeGameSession; result: SupercoinResult }> {
+  ): { session: FreeGameSession; result: SupercoinResult } {
     const values = this.math.features.supercoinWheelValues;
-    const idx = await this.rng.nextInt(values.length);
+    const idx = this.rng.nextInt(values.length, 'feature.supercoin.wheel');
     const wheelValue = values[idx]!;
     const room = Math.max(
       0,
@@ -364,10 +374,10 @@ export class SpinEngine {
     };
   }
 
-  private async rollChance(p: number): Promise<boolean> {
+  private rollChance(p: number, purpose = 'feature.chance'): boolean {
     if (p <= 0) return false;
     if (p >= 1) return true;
-    const roll = await this.rng.nextInt(1_000_000);
+    const roll = this.rng.nextInt(1_000_000, purpose);
     return roll < Math.floor(p * 1_000_000);
   }
 }

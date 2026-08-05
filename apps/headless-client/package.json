@@ -1,0 +1,19 @@
+{
+  "name": "@ws/headless-client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Second frontend consumer — proves multi-frontend RGS contract",
+  "scripts": {
+    "smoke": "tsx src/smoke.ts",
+    "test": "tsx src/smoke.ts"
+  },
+  "dependencies": {
+    "@ws/game-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

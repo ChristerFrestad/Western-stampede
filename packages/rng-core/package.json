@@ -1,0 +1,28 @@
+{
+  "name": "@ws/rng-core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Production-grade certifiable RNG core (CSPRNG + unbiased scaling + health + draw meta)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test src/**/*.test.ts",
+    "test:statistical": "node --import tsx --test src/**/*.stat.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

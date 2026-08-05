@@ -3,19 +3,26 @@
 ## Principles
 
 1. **Server-authoritative** — Client only renders; RGS decides grid, wins, features, balances.
-2. **Pluggable RNG** — `IRngProvider` (`local-crypto` today; external certified later).
-3. **Math as data** — Strips, paytable, feature weights, buy prices versioned (`mathVersion` on every round).
+2. **Certifiable RNG** — `@ws/rng-core` (OS CSPRNG + rejection sampling, per-round streams, purpose tags, fail-closed health). See `docs/compliance/RNG_DESIGN.md`.
+3. **Math as data** — Strips, paytable, feature weights, buy prices versioned (`mathVersion` + `mathContentHash`).
 4. **Wallet adapter** — Debit → spin → credit; top-up intents for future PSP.
 5. **Idempotent spins** — `clientRoundId` prevents double debit on retry.
-6. **Audit trail** — Every round stored with stops, grid, wins, debit, RNG meta.
+6. **Audit trail** — Every round stored with stops, grid, wins, debit, RNG meta (`drawIds`, algorithm, buildId).
 
 ## Packages
 
 | Package | Role |
 | --- | --- |
 | `@ws/shared` | Symbol IDs, DTOs |
-| `@ws/math-engine` | Strips, ways eval, free games, Supercoin, Stampede, sim CLI |
-| `@ws/rgs-api` | Express RGS: auth, spin, wallet, admin |
+| `@ws/rng-core` | Production RNG (entropy, unbiased map, health, draw audit) |
+| `@ws/math-engine` | Strips, ways eval, features, PCG64 sim, sim CLI |
+| `@ws/game-protocol` | Zod schemas, OpenAPI, multi-frontend client SDK |
+| `@ws/wallet-port` | Operator wallet boundary (demo + HTTP stub) |
+| `@ws/audit-core` | Append-only hash chain for audit events |
+| `@ws/rgs-api` | Express RGS: multi-tenant auth, spin TX, wallet, admin, history |
+| `@ws/client-e2e` | Playwright critical-path E2E |
+| `@ws/headless-client` | Second protocol consumer (smoke) |
+| `@ws/lab-harness` | NIST bit export + lab package meta |
 | `@ws/client` | PixiJS presentation |
 
 ## Spin flow

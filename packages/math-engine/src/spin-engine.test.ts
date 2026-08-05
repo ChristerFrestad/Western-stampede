@@ -34,7 +34,7 @@ describe('SpinEngine free games & buy', () => {
       mode: 'BASE',
       buyTier: 'standard',
     });
-    assert.equal(out.debitAmount, 2200);
+    assert.equal(out.debitAmount, 1900);
     assert.equal(out.result.features.buyEntered, true);
     assert.equal(out.result.features.freeGamesAwarded, 8);
     // first free spin consumed one
@@ -64,7 +64,7 @@ describe('SpinEngine free games & buy', () => {
       mode: 'BASE',
       buyTier: 'enhanced',
     });
-    assert.equal(out.debitAmount, 8000);
+    assert.equal(out.debitAmount, 6300);
     assert.equal(out.result.features.buyEntered, true);
     assert.ok(out.result.features.supercoin);
     assert.ok((out.result.features.supercoin?.totalLonghornsInjected ?? 0) > 0);

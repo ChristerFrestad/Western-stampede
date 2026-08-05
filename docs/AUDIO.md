@@ -41,6 +41,12 @@ Soft knee compressor on master prevents digital clip while keeping average level
 - Optional file overrides: `/assets/sfx/{id}.ogg|mp3|wav` (CC0 only; list in `assets/LICENSES.md`)
 - Unlock on first click/key (browser autoplay policy)
 
+## Unlock UX
+
+- Browser requires a user gesture: first `pointerdown` / `keydown` calls `audio.unlock()`.
+- Unlock starts wind bed + base music stem; a soft chime confirms audio is live.
+- UI mute button: **SOUND** (live) / **MUTED** (silent). Do not re-toast “click for sound” after unlock.
+
 ## Mute
 
 `setMuted(true)` zeros master and stops loops; unmute restarts wind + current stem.

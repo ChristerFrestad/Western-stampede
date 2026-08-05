@@ -6,7 +6,11 @@ RUN npm install -g pnpm@10.33.0
 
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
+COPY packages/rng-core/package.json packages/rng-core/
 COPY packages/math-engine/package.json packages/math-engine/
+COPY packages/audit-core/package.json packages/audit-core/
+COPY packages/wallet-port/package.json packages/wallet-port/
+COPY packages/game-protocol/package.json packages/game-protocol/
 COPY apps/rgs-api/package.json apps/rgs-api/
 
 RUN pnpm install --no-frozen-lockfile
@@ -15,6 +19,10 @@ COPY packages packages
 COPY apps/rgs-api apps/rgs-api
 
 RUN pnpm --filter @ws/shared build \
+ && pnpm --filter @ws/rng-core build \
+ && pnpm --filter @ws/audit-core build \
+ && pnpm --filter @ws/wallet-port build \
+ && pnpm --filter @ws/game-protocol build \
  && pnpm --filter @ws/math-engine build \
  && pnpm --filter @ws/rgs-api build
 
@@ -27,6 +35,8 @@ COPY --from=build /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/rgs-api ./apps/rgs-api
+# Ops console (served at /admin)
+COPY apps/client/public/admin.html /app/apps/rgs-api/public/admin.html
 
 WORKDIR /app/apps/rgs-api
 EXPOSE 3000

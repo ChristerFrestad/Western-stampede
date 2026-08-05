@@ -18,7 +18,7 @@ describe('evaluateWays', () => {
  assert.ok(buf);
  assert.equal(buf!.count, 5);
  assert.equal(buf!.ways, 1);
- assert.equal(buf!.amount, Math.floor(100 * 2.8 * 1));
+ assert.equal(buf!.amount, Math.floor(100 * 2.667 * 1));
  assert.ok(buf!.cells && buf!.cells.length >= 5);
  });
 

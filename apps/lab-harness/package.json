@@ -1,0 +1,30 @@
+{
+  "name": "@ws/lab-harness",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Export bitstreams and packages for independent RNG / math lab review",
+  "scripts": {
+    "export-bits": "tsx src/export-bits.ts",
+    "export-package-meta": "tsx src/export-package-meta.ts",
+    "build-package": "tsx src/build-lab-package.ts",
+    "pack:v2": "tsx src/pack-v2.ts",
+    "sign": "tsx src/sign-lab.ts",
+    "verify": "tsx src/sign-lab.ts --verify",
+    "verify:drop": "tsx src/verify-drop.ts",
+    "report": "tsx src/report-lab.ts",
+    "test": "node --import tsx --test src/**/*.test.ts"
+  },
+
+
+
+  "dependencies": {
+    "@ws/rng-core": "workspace:*",
+    "@ws/math-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,113 @@
+# Multi-instance RGS behind nginx + shared Postgres + Redis rate limits.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod-like.yml --profile prod-like up --build
+#
+# UI:  http://localhost:18080
+# API: http://localhost:13000 (load-balanced to rgs-a + rgs-b)
+
+services:
+  postgres:
+    profiles: ['durable', 'prod-like']
+
+  redis:
+    profiles: ['durable', 'prod-like']
+
+  rgs-a:
+    extends:
+      file: docker-compose.yml
+      service: rgs-api
+    container_name: ws-rgs-a
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://ws:ws@postgres:5432/western_stampede
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-prod-like-secret}
+      REAL_MONEY: "false"
+      COMPLIANCE_MODE: "false"
+      OTEL_SERVICE_NAME: western-stampede-rgs-a
+    ports: []
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ['prod-like']
+    networks: [ws]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "Promise.all([fetch('http://127.0.0.1:3000/health'),fetch('http://127.0.0.1:3000/ready')]).then(async([h,r])=>{const hj=await h.json();const rj=await r.json();process.exit(h.ok&&hj.ok&&r.ok&&rj.ready?0:1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+
+  rgs-b:
+    extends:
+      file: docker-compose.yml
+      service: rgs-api
+    container_name: ws-rgs-b
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://ws:ws@postgres:5432/western_stampede
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-prod-like-secret}
+      REAL_MONEY: "false"
+      COMPLIANCE_MODE: "false"
+      OTEL_SERVICE_NAME: western-stampede-rgs-b
+    ports: []
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ['prod-like']
+    networks: [ws]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "Promise.all([fetch('http://127.0.0.1:3000/health'),fetch('http://127.0.0.1:3000/ready')]).then(async([h,r])=>{const hj=await h.json();const rj=await r.json();process.exit(h.ok&&hj.ok&&r.ok&&rj.ready?0:1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+
+  rgs-lb:
+    image: nginx:1.27-alpine
+    profiles: ['prod-like']
+    ports:
+      - "${RGS_PORT:-13000}:80"
+    volumes:
+      - ./deploy/nginx-rgs-lb.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      rgs-a:
+        condition: service_healthy
+      rgs-b:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1/nginx-health",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks: [ws]
+
+  client:
+    profiles: ['prod-like']
+    depends_on:
+      rgs-lb:
+        condition: service_healthy

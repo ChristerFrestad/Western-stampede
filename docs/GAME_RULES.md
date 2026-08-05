@@ -79,9 +79,9 @@ Same free-game math as natural scatters.
 
 | Tier | Cost | Free games | Extras |
 | --- | --- | --- | --- |
-| standard | 22× bet | 8 | — |
-| enhanced | 80× bet | 15 | Supercoin on entry |
-| premium | 145× bet | 20 | Supercoin + stampede boost |
+| standard | 19× bet | 8 | — |
+| enhanced | 63× bet | 15 | Supercoin on entry |
+| premium | 118× bet | 20 | Supercoin + stampede boost |
 
 ## Win celebrations (× total bet on that spin)
 

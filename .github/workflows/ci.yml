@@ -6,8 +6,30 @@ on:
   pull_request:
 
 jobs:
-  build-test:
+  unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20', '22']
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ws
+          POSTGRES_PASSWORD: ws
+          POSTGRES_DB: western_stampede
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ws -d western_stampede"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://ws:ws@localhost:5432/western_stampede
+      LAB_SIGNING_KEY: ${{ secrets.LAB_SIGNING_KEY || 'ci-lab-signing-key-not-for-production!' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -15,12 +37,169 @@ jobs:
           version: 10.33.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install
-      - run: pnpm --filter @ws/shared build
-      - run: pnpm --filter @ws/math-engine build
-      - run: pnpm --filter @ws/math-engine test
-      - run: pnpm --filter @ws/rgs-api build
-      - run: pnpm --filter @ws/client build
-      - run: pnpm math:sim 20000
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Security scan
+        if: matrix.node-version == '22'
+        run: pnpm security:scan
+      - name: Build
+        run: |
+          pnpm --filter @ws/shared build
+          pnpm --filter @ws/rng-core build
+          pnpm --filter @ws/audit-core build
+          pnpm --filter @ws/wallet-port build
+          pnpm --filter @ws/game-protocol build
+          pnpm --filter @ws/math-engine build
+          pnpm --filter @ws/rgs-api build
+      - name: Unit tests (Postgres integration when DATABASE_URL set)
+        run: |
+          pnpm --filter @ws/rng-core test
+          pnpm --filter @ws/math-engine test
+          pnpm --filter @ws/wallet-port test
+          pnpm --filter @ws/game-protocol test
+          pnpm --filter @ws/audit-core test
+          pnpm --filter @ws/rgs-api test
+          pnpm --filter @ws/lab-harness test
+      - name: Statistical RNG gates
+        run: pnpm --filter @ws/rng-core test:statistical
+      - name: Throughput bench
+        run: pnpm --filter @ws/math-engine bench
+      - name: Lab pack v2 (2M) + sign
+        if: matrix.node-version == '22'
+        env:
+          LAB_SIM_SPINS: '2000000'
+        run: pnpm lab:pack:v2
+      - name: Verify lab drop integrity + HMAC
+        if: matrix.node-version == '22'
+        run: |
+          DROP=$(node -e "console.log(require('./lab-output/latest-lab-v2.json').outDir)")
+          echo "Verifying $DROP"
+          pnpm lab:verify:drop -- "$DROP"
+          pnpm lab:report -- "$DROP"
+      - name: Upload lab drop
+        if: matrix.node-version == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab-drop-v2-ci
+          path: lab-output/lab-drop-*
+          retention-days: 14
+
+  smoke-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: unit
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ws
+          POSTGRES_PASSWORD: ws
+          POSTGRES_DB: western_stampede
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ws -d western_stampede"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://ws:ws@localhost:5432/western_stampede
+      REDIS_URL: redis://localhost:6379
+      PORT: '3000'
+      RGS_URL: http://127.0.0.1:3000
+      LOAD_SPINS: '300'
+      LOAD_CONCURRENCY: '20'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: |
+          pnpm --filter @ws/shared build
+          pnpm --filter @ws/rng-core build
+          pnpm --filter @ws/math-engine build
+          pnpm --filter @ws/game-protocol build
+          pnpm --filter @ws/audit-core build
+          pnpm --filter @ws/wallet-port build
+          pnpm --filter @ws/rgs-api build
+      - name: Redis rate-limit integration tests
+        run: pnpm --filter @ws/rgs-api test
+        env:
+          REDIS_URL: redis://localhost:6379
+          DATABASE_URL: postgres://ws:ws@localhost:5432/western_stampede
+      - name: Headless smoke + load (spawns RGS)
+        run: pnpm test:smoke-load
+      - name: Deploy preflight (static)
+        if: success()
+        run: PREFLIGHT_LIVE=false pnpm deploy:preflight
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: unit
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ws
+          POSTGRES_PASSWORD: ws
+          POSTGRES_DB: western_stampede
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ws -d western_stampede"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://ws:ws@localhost:5432/western_stampede
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: |
+          pnpm --filter @ws/shared build
+          pnpm --filter @ws/rng-core build
+          pnpm --filter @ws/math-engine build
+          pnpm --filter @ws/game-protocol build
+          pnpm --filter @ws/audit-core build
+          pnpm --filter @ws/wallet-port build
+          pnpm --filter @ws/rgs-api build
+      - name: Install Playwright Chromium
+        run: pnpm --filter @ws/client-e2e exec playwright install chromium --with-deps
+      - name: E2E critical path (RGS on Postgres)
+        run: pnpm test:e2e
+        env:
+          DATABASE_URL: postgres://ws:ws@localhost:5432/western_stampede
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/client-e2e/test-results/

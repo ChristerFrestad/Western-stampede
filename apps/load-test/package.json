@@ -1,0 +1,15 @@
+{
+  "name": "@ws/load-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx src/spin-load.ts",
+    "test": "tsx src/spin-load.ts --spins 50 --concurrency 5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

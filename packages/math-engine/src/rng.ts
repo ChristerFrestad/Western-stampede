@@ -1,77 +1,261 @@
-import { randomInt } from 'node:crypto';
+import {
+  RngService,
+  RngStream,
+  SeededEntropy,
+  type RngDraw,
+} from '@ws/rng-core';
 import type { RngMeta } from '@ws/shared';
+import { pcg64NextInt, pcg64Seed } from './pcg64.js';
 
-/** Pluggable RNG — swap implementation for certified external RNG later. */
+export const SIM_ONLY_ALGORITHMS = new Set([
+  'pcg64-xsl-rr-sim-only',
+  'mulberry32-sim-only',
+  'test-sequence',
+  'replay-sequence',
+]);
+
+/**
+ * Synchronous RNG API — Node CSPRNG and PCG are both sync.
+ * Prefer sync for engine + multi-million spin Monte Carlo on multi-core hosts.
+ */
 export interface IRngProvider {
- nextInt(maxExclusive: number): Promise<number>;
- nextInts(maxExclusive: number, count: number): Promise<number[]>;
- meta(): RngMeta;
+  nextInt(maxExclusive: number, purpose?: string): number;
+  nextInts(
+    maxExclusive: number,
+    count: number,
+    purposePrefix?: string,
+  ): number[];
+  meta(): RngMeta;
+  readonly simOnly?: boolean;
 }
 
-/** Cryptographically secure PRNG for realistic demo / pre-cert use. */
+export function assertProductionRng(rng: IRngProvider): void {
+  if (rng.simOnly) {
+    throw new Error('SIM_RNG_FORBIDDEN_IN_PRODUCTION');
+  }
+  const alg = rng.meta().algorithm;
+  if (alg && SIM_ONLY_ALGORITHMS.has(alg)) {
+    throw new Error('SIM_RNG_FORBIDDEN_IN_PRODUCTION');
+  }
+}
+
+export class StreamRngAdapter implements IRngProvider {
+  readonly simOnly = false;
+
+  constructor(private readonly stream: RngStream) {}
+
+  nextInt(maxExclusive: number, purpose = 'unspecified'): number {
+    return this.stream.nextInt(maxExclusive, purpose);
+  }
+
+  nextInts(
+    maxExclusive: number,
+    count: number,
+    purposePrefix = 'batch',
+  ): number[] {
+    return this.stream.nextInts(maxExclusive, count, purposePrefix);
+  }
+
+  meta(): RngMeta {
+    return this.stream.meta();
+  }
+
+  getDraws(): readonly RngDraw[] {
+    return this.stream.getDraws();
+  }
+}
+
 export class CryptoPrng implements IRngProvider {
- meta(): RngMeta {
- return { provider: 'local-crypto' };
- }
+  readonly simOnly = false;
+  private readonly service: RngService;
+  private stream: RngStream;
 
- async nextInt(maxExclusive: number): Promise<number> {
- if (maxExclusive <= 0) throw new Error('maxExclusive must be > 0');
- return randomInt(maxExclusive);
- }
+  constructor(correlationId = 'unscoped') {
+    this.service = new RngService({ provider: 'local-crypto' });
+    this.stream = this.service.openStream(correlationId);
+  }
 
- async nextInts(maxExclusive: number, count: number): Promise<number[]> {
- const out: number[] = [];
- for (let i = 0; i < count; i++) {
- out.push(await this.nextInt(maxExclusive));
- }
- return out;
- }
+  beginRound(correlationId: string): void {
+    this.stream = this.service.openStream(correlationId);
+  }
+
+  health() {
+    return this.service.health();
+  }
+
+  assertAvailable(): void {
+    this.service.assertAvailable();
+  }
+
+  nextInt(maxExclusive: number, purpose = 'unspecified'): number {
+    return this.stream.nextInt(maxExclusive, purpose);
+  }
+
+  nextInts(
+    maxExclusive: number,
+    count: number,
+    purposePrefix = 'batch',
+  ): number[] {
+    return this.stream.nextInts(maxExclusive, count, purposePrefix);
+  }
+
+  meta(): RngMeta {
+    return this.stream.meta();
+  }
+
+  getDraws(): readonly RngDraw[] {
+    return this.stream.getDraws();
+  }
 }
 
-/** Deterministic sequence for tests and forced feature demos. */
+export function createProductionStream(
+  correlationId: string,
+  options?: ConstructorParameters<typeof RngService>[0],
+): { service: RngService; stream: RngStream; adapter: StreamRngAdapter } {
+  const service = new RngService({
+    provider: 'production-csprng',
+    ...options,
+  });
+  service.assertAvailable();
+  const stream = service.openStream(correlationId);
+  return { service, stream, adapter: new StreamRngAdapter(stream) };
+}
+
 export class SequenceRng implements IRngProvider {
- private i = 0;
- constructor(private readonly values: number[]) {}
+  readonly simOnly = true;
+  private i = 0;
+  constructor(private readonly values: number[]) {}
 
- meta(): RngMeta {
- return { provider: 'sequence', streamId: `seq-${this.values.length}` };
- }
+  meta(): RngMeta {
+    return {
+      provider: 'sequence',
+      streamId: `seq-${this.values.length}`,
+      algorithm: 'test-sequence',
+      buildId: 'test',
+    };
+  }
 
- async nextInt(maxExclusive: number): Promise<number> {
- const v = this.values[this.i % this.values.length]!;
- this.i++;
- return v % maxExclusive;
- }
+  nextInt(maxExclusive: number, _purpose?: string): number {
+    if (maxExclusive <= 0) throw new Error('maxExclusive must be > 0');
+    const v = this.values[this.i % this.values.length]!;
+    this.i++;
+    return v % maxExclusive;
+  }
 
- async nextInts(maxExclusive: number, count: number): Promise<number[]> {
- const out: number[] = [];
- for (let i = 0; i < count; i++) out.push(await this.nextInt(maxExclusive));
- return out;
- }
+  nextInts(
+    maxExclusive: number,
+    count: number,
+    purposePrefix?: string,
+  ): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push(this.nextInt(maxExclusive, `${purposePrefix ?? 'batch'}.${i}`));
+    }
+    return out;
+  }
 }
 
-/** Mulberry32-style seeded RNG for mass simulation (faster than crypto). */
+/**
+ * Replay RNG: exact draw values in order (for round verification).
+ * Each call consumes the next pre-recorded value; ignores maxExclusive except bounds check.
+ */
+export class ReplayRng implements IRngProvider {
+  readonly simOnly = true;
+  private i = 0;
+
+  constructor(private readonly values: number[]) {}
+
+  meta(): RngMeta {
+    return {
+      provider: 'replay',
+      streamId: `replay-${this.values.length}`,
+      algorithm: 'replay-sequence',
+      buildId: 'verify',
+      drawCount: this.i,
+    };
+  }
+
+  nextInt(maxExclusive: number, _purpose?: string): number {
+    if (this.i >= this.values.length) {
+      throw new Error('REPLAY_EXHAUSTED');
+    }
+    const v = this.values[this.i++]!;
+    if (v < 0 || v >= maxExclusive) {
+      throw new Error(
+        `REPLAY_OUT_OF_RANGE: value=${v} maxExclusive=${maxExclusive} at index ${this.i - 1}`,
+      );
+    }
+    return v;
+  }
+
+  nextInts(
+    maxExclusive: number,
+    count: number,
+    purposePrefix?: string,
+  ): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push(this.nextInt(maxExclusive, `${purposePrefix ?? 'batch'}.${i}`));
+    }
+    return out;
+  }
+
+  remaining(): number {
+    return this.values.length - this.i;
+  }
+}
+
+/**
+ * PCG64 for mass simulation ONLY.
+ */
 export class SeededPrng implements IRngProvider {
- private state: number;
- constructor(seed: number) {
- this.state = seed >>> 0;
- }
+  readonly simOnly = true;
+  private state: bigint;
 
- meta(): RngMeta {
- return { provider: 'seeded-sim', streamId: String(this.state) };
- }
+  constructor(seed: number | bigint) {
+    this.state = pcg64Seed(seed);
+  }
 
- async nextInt(maxExclusive: number): Promise<number> {
- let t = (this.state += 0x6d2b79f5);
- t = Math.imul(t ^ (t >>> 15), t | 1);
- t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
- const r = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
- return Math.floor(r * maxExclusive);
- }
+  meta(): RngMeta {
+    return {
+      provider: 'seeded-sim',
+      streamId: this.state.toString(16).slice(0, 16),
+      algorithm: 'pcg64-xsl-rr-sim-only',
+      buildId: 'sim',
+    };
+  }
 
- async nextInts(maxExclusive: number, count: number): Promise<number[]> {
- const out: number[] = [];
- for (let i = 0; i < count; i++) out.push(await this.nextInt(maxExclusive));
- return out;
- }
+  nextInt(maxExclusive: number, _purpose?: string): number {
+    const r = pcg64NextInt(this.state, maxExclusive);
+    this.state = r.state;
+    return r.value;
+  }
+
+  nextInts(
+    maxExclusive: number,
+    count: number,
+    purposePrefix?: string,
+  ): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push(this.nextInt(maxExclusive, `${purposePrefix ?? 'batch'}.${i}`));
+    }
+    return out;
+  }
 }
+
+export const Pcg64SimPrng = SeededPrng;
+
+export function createTestCspongeStream(
+  correlationId: string,
+  seed: number,
+): StreamRngAdapter {
+  const service = new RngService({
+    provider: 'test-csprng-path',
+    entropySource: new SeededEntropy(seed),
+  });
+  return new StreamRngAdapter(service.openStream(correlationId));
+}
+
+export type { RngDraw, RngHealth, RngService } from '@ws/rng-core';
+export { RngService as ProductionRngService } from '@ws/rng-core';

@@ -11,13 +11,19 @@
  "import": "./dist/index.js"
  }
  },
- "scripts": {
- "build": "tsc -p tsconfig.json",
- "test": "node --import tsx --test src/**/*.test.ts",
- "sim": "tsx src/sim/cli.ts",
- "sim:buy": "tsx src/sim/buy-cli.ts"
- },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test src/**/*.test.ts",
+    "sim": "tsx src/sim/cli.ts",
+    "sim:parallel": "tsx src/sim/cli.ts --parallel",
+    "sim:buy": "tsx src/sim/buy-cli.ts",
+    "bench": "tsx src/sim/bench.ts",
+    "par": "tsx src/sim/par-sheet.ts"
+  },
+
+
  "dependencies": {
+ "@ws/rng-core": "workspace:*",
  "@ws/shared": "workspace:*"
  },
  "devDependencies": {

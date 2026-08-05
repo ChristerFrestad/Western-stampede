@@ -15,9 +15,9 @@ Server is authoritative. Client only renders `SpinResult`.
 
 | Tier | Cost | Free games | Extras |
 | --- | --- | --- | --- |
-| standard | 22× bet | 8 | — |
-| enhanced | 80× | 15 | Supercoin on entry (before first free strip) |
-| premium | 145× | 20 | Supercoin on entry + stampede boost |
+| standard | 19× bet | 8 | — |
+| enhanced | 63× | 15 | Supercoin on entry (before first free strip) |
+| premium | 118× | 20 | Supercoin on entry + stampede boost |
 
 1. Debit `floor(bet * costX)` once.
 2. Create free session with `sessionBet = bet`.

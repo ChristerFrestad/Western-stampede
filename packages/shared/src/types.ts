@@ -10,9 +10,21 @@ export interface Money {
  currency: 'DEMO' | 'USD';
 }
 
+/**
+ * RNG provenance attached to every spin result for audit / lab recall.
+ * Production draws also carry algorithm, buildId, and drawIds.
+ */
 export interface RngMeta {
- provider: string;
- streamId?: string;
+  provider: string;
+  streamId?: string;
+  /** Stable algorithm id, e.g. os-csprng+rejection-v1 */
+  algorithm?: string;
+  /** RNG package / build pin */
+  buildId?: string;
+  /** Draw identifiers produced for this round (ordered). */
+  drawIds?: string[];
+  /** Number of draws consumed this round. */
+  drawCount?: number;
 }
 
 export interface PaytableEntry {
@@ -111,22 +123,24 @@ export interface SpinRequest {
 }
 
 export interface SpinResult {
- roundId: string;
- mathVersion: string;
- mode: GameMode;
- bet: number;
- /** grid[reel][row] */
- grid: SymbolId[][];
- /** Visible heights used this spin. */
- heights: number[];
- stops: number[];
- wins: WinDetail[];
- totalWin: number;
- balance: number;
- features: SpinFeatures;
- /** Per-wild cell multipliers (reel,row) → mult when applicable. */
- wildMults: Array<{ reel: number; row: number; mult: number }>;
- rngMeta: RngMeta;
+  roundId: string;
+  mathVersion: string;
+  /** SHA-256 of canonical internal math config used for this round. */
+  mathContentHash?: string;
+  mode: GameMode;
+  bet: number;
+  /** grid[reel][row] */
+  grid: SymbolId[][];
+  /** Visible heights used this spin. */
+  heights: number[];
+  stops: number[];
+  wins: WinDetail[];
+  totalWin: number;
+  balance: number;
+  features: SpinFeatures;
+  /** Per-wild cell multipliers (reel,row) → mult when applicable. */
+  wildMults: Array<{ reel: number; row: number; mult: number }>;
+  rngMeta: RngMeta;
 }
 
 export interface GameConfigResponse extends MathConfigPublic {

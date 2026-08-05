@@ -18,6 +18,8 @@ Client-only presentation rules. Outcomes are always server-authoritative; skip n
 
 ## Skip ladder (one Space / click = one step)
 
+### Win celebration
+
 1. **reel_wins** → abort remaining combos → **counting**
 2. **counting** → snap to full amount → next phase
 3. **banner_big** → **banner_mega** → **banner_super** (only earned tiers)
@@ -25,6 +27,15 @@ Client-only presentation rules. Outcomes are always server-authoritative; skip n
 5. Leave **total** → back to idle board / next free spin
 
 Never jump from first Space straight to idle when tier banners or total remain.
+
+### Feature ceremony (presentation only)
+
+- Feature splash (buy / free enter / retrigger / stampede / free end): Space/click ends early
+- Supercoin wheel: Space/click snaps to final segment, then result hold, then inject
+- Longhorn inject: Space/click ends early
+- Autoplay uses shorter timers (~42% duration) and skips on-grid Longhorn callouts
+
+Buy costs and free-game package sizes always come from `GET /game/config` (`buyOptions`) — never hardcode.
 
 ## Win clarity rules
 
