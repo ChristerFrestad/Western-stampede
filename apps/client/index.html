@@ -138,6 +138,39 @@
  .meter.herd.show {
  display: block;
  }
+ .fg-meter .fg-track {
+ margin-top: 0.35rem;
+ height: 5px;
+ border-radius: 999px;
+ background: #2a2018;
+ overflow: hidden;
+ border: 1px solid #e8b84a33;
+ }
+ .fg-meter .fg-fill {
+ height: 100%;
+ width: 0%;
+ background: linear-gradient(90deg, #c9a227, #ffe08a);
+ border-radius: 999px;
+ transition: width 0.35s ease-out;
+ box-shadow: 0 0 8px #e8b84a66;
+ }
+ .btn-spin.spinning {
+ animation: spin-btn-pulse 0.9s ease-in-out infinite;
+ opacity: 0.92;
+ }
+ @keyframes spin-btn-pulse {
+ 0%, 100% { box-shadow: 0 0 0 0 #e8b84a00; }
+ 50% { box-shadow: 0 0 18px 2px #e8b84a66; }
+ }
+ #last-win-meter.win-flash {
+ animation: last-win-flash 0.7s ease-out;
+ border-color: #7dffb0;
+ }
+ @keyframes last-win-flash {
+ 0% { box-shadow: 0 0 0 0 #7dffb088; }
+ 40% { box-shadow: 0 0 22px 4px #7dffb066; }
+ 100% { box-shadow: 0 0 0 0 #7dffb000; }
+ }
  .meter.herd.pulse {
  animation: herd-meter-pulse 0.9s ease-out;
  border-color: #ffe08a;
@@ -913,12 +946,13 @@
  <label>Balance</label>
  <strong id="balance">—</strong>
  </div>
- <div class="meter" id="fg-meter" style="display: none">
+ <div class="meter fg-meter" id="fg-meter" style="display: none">
  <label>Free games</label>
  <strong id="fg-count">0</strong>
  <span class="herd-on-grid" id="fg-total-label"></span>
+ <div class="fg-track" aria-hidden="true"><div class="fg-fill" id="fg-fill"></div></div>
  </div>
- <div class="meter">
+ <div class="meter" id="last-win-meter">
  <label>Last win</label>
  <strong id="last-win">0</strong>
  </div>

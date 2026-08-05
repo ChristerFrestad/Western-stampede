@@ -157,6 +157,15 @@ function setBusy(v: boolean) {
   el.bet.disabled = v || freeRemaining > 0;
   el.plus.disabled = v || freeRemaining > 0;
   el.minus.disabled = v || freeRemaining > 0;
+  el.spin.classList.toggle('spinning', v);
+  if (v) {
+    el.spin.textContent =
+      freeRemaining > 0 ? `FREE ${freeRemaining}` : 'SPINNING…';
+    el.spin.setAttribute('aria-busy', 'true');
+  } else {
+    el.spin.textContent = freeRemaining > 0 ? `FREE · ${freeRemaining}` : 'SPIN';
+    el.spin.setAttribute('aria-busy', 'false');
+  }
   if (el.betLockedChip) {
     if (freeRemaining > 0) {
       el.betLockedChip.classList.add('show');
@@ -165,6 +174,15 @@ function setBusy(v: boolean) {
       el.betLockedChip.classList.remove('show');
     }
   }
+}
+
+function flashLastWin() {
+  const meter = document.getElementById('last-win-meter');
+  if (!meter) return;
+  meter.classList.remove('win-flash');
+  void meter.offsetWidth;
+  meter.classList.add('win-flash');
+  window.setTimeout(() => meter.classList.remove('win-flash'), 800);
 }
 
 function setFeatureBanner(text: string | null, alert = false) {
@@ -237,13 +255,23 @@ function updateMeters(result: SpinResult) {
     if (freeTotal > 0) {
       el.fgCount.textContent = `${freeRemaining} / ${freeTotal}`;
       if (el.fgTotalLabel) el.fgTotalLabel.textContent = 'remaining / total';
+      const fill = document.getElementById('fg-fill') as HTMLElement | null;
+      if (fill) {
+        const done = Math.max(0, freeTotal - freeRemaining);
+        const pct = Math.min(100, Math.round((done / freeTotal) * 100));
+        fill.style.width = `${pct}%`;
+      }
     } else {
       el.fgCount.textContent = String(freeRemaining);
       if (el.fgTotalLabel) el.fgTotalLabel.textContent = 'remaining';
+      const fill = document.getElementById('fg-fill') as HTMLElement | null;
+      if (fill) fill.style.width = '0%';
     }
   } else {
     el.fgMeter.style.display = 'none';
     freeTotal = 0;
+    const fill = document.getElementById('fg-fill') as HTMLElement | null;
+    if (fill) fill.style.width = '0%';
   }
 
   const ways = result.heights.reduce((a, b) => a * b, 1);
@@ -457,6 +485,7 @@ async function playOneSpin(buyTier?: BuyTier): Promise<SpinResult | null> {
 
   setBalance(result.balance);
   updateMeters(result);
+  if (result.totalWin > 0) flashLastWin();
 
   if (tier === 'super' || tier === 'mega') {
     toast(`${tier === 'super' ? 'SUPER' : 'MEGA'} WIN ${fmt(result.totalWin)}!`);
@@ -744,6 +773,18 @@ async function boot() {
     ensureSound();
     void doSpin();
   };
+  // Space spins when idle (not during celebration — skip ladder owns Space then)
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA'))
+      return;
+    if (el.modal.classList.contains('open')) return;
+    if (busy || phase !== 'idle') return;
+    e.preventDefault();
+    ensureSound();
+    void doSpin();
+  });
   el.buy.onclick = () => showBuy();
   el.topup.onclick = () => showTopUp();
   el.rules.onclick = () => showRules();
