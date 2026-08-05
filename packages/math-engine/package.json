@@ -17,7 +17,8 @@
     "sim": "tsx src/sim/cli.ts",
     "sim:parallel": "tsx src/sim/cli.ts --parallel",
     "sim:buy": "tsx src/sim/buy-cli.ts",
-    "bench": "tsx src/sim/bench.ts",
+    "bench": "node dist/sim/bench.js",
+    "bench:src": "tsx src/sim/bench.ts",
     "par": "tsx src/sim/par-sheet.ts"
   },
 

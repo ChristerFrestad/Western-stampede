@@ -64,6 +64,7 @@ jobs:
           pnpm --filter @ws/lab-harness test
       - name: Statistical RNG gates
         run: pnpm --filter @ws/rng-core test:statistical
+      # Use compiled dist (not tsx workers) — Node 20 worker .ts load is unreliable
       - name: Throughput bench
         run: pnpm --filter @ws/math-engine bench
       - name: Lab pack v2 (2M) + sign
