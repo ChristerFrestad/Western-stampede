@@ -92,11 +92,22 @@ export async function showFeatureSplash(opts: {
       ? 'FEATURE COMPLETE'
       : opts.kind === 'buy'
         ? 'BONUS BUY'
-        : 'FEATURE';
+        : opts.kind === 'stampede'
+          ? 'EXPAND FEATURE'
+          : 'FEATURE';
+
+  const art =
+    opts.kind === 'free-games' ||
+    opts.kind === 'retrigger' ||
+    opts.kind === 'buy' ||
+    opts.kind === 'stampede'
+      ? `<div class="fx-art-wrap"><img class="fx-art" src="/assets/ui/free-games-splash.jpg" alt="" /></div>`
+      : '';
 
   layer.innerHTML = `
     <div class="${splashClass}">
-      <div class="fx-card">
+      <div class="fx-card fx-card-feature">
+        ${art}
         <div class="fx-kicker">${kicker}</div>
         <div class="fx-title">${opts.title}</div>
         ${opts.subtitle ? `<div class="fx-sub">${opts.subtitle}</div>` : ''}

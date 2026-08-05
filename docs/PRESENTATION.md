@@ -56,11 +56,13 @@ Buy costs and free-game package sizes always come from `GET /game/config` (`buyO
 
 | Transition | Presentation |
 | --- | --- |
-| Base → free | Splash + free BGM stem |
+| Base → free | Splash art + free BGM stem |
 | Retrigger | Short splash + FG meter bump |
-| Stampede | Splash + board height change to 4-10-10-10-4 |
-| Supercoin | Wheel overlay (server value; client lands matching segment) |
+| Stampede | Board expand shockwave → splash → Longhorn pulse |
+| Supercoin | Wheel → inject rain + dust into reels |
 | Free end | Splash with feature total + BGM back to base |
+| Premium land | Gold/scatter spark ring on reel stop |
+| Win pill | Plate + pop scale under board title |
 
 ## IP / branding
 

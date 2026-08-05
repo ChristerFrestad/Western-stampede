@@ -76,6 +76,7 @@ export class ReelView {
   private fxLayer = new Container();
   private multLayer = new Container();
   private pillText: Text | null = null;
+  private pillPlate: Graphics | null = null;
   /** Optional hooks for SFX (set by main). */
   onReelStop: ((reelIndex: number, symbols: SymbolId[]) => void) | null = null;
   onSpinStart: (() => void) | null = null;
@@ -151,14 +152,17 @@ export class ReelView {
     this.board.addChild(this.fxLayer);
     this.board.addChild(this.multLayer);
 
+    this.pillPlate = new Graphics();
+    this.pillPlate.visible = false;
+    this.stageRoot.addChild(this.pillPlate);
     this.pillText = new Text({
       text: '',
       style: {
         fontFamily: 'Outfit, sans-serif',
-        fontSize: 16,
+        fontSize: 18,
         fill: 0xfff2c4,
         fontWeight: '700',
-        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.8 },
+        dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.9 },
       },
     });
     this.pillText.anchor.set(0.5);
@@ -236,8 +240,17 @@ export class ReelView {
 
     if (this.titleText) {
       this.titleText.x = cx;
-      this.titleText.y = Math.max(28, cy - boardH / 2 - 56);
-      this.titleText.style.fontSize = Math.min(48, w / 18);
+      this.titleText.y = Math.max(22, cy - boardH / 2 - (w < 640 ? 40 : 56));
+      this.titleText.style.fontSize = Math.min(48, Math.max(22, w / (w < 640 ? 14 : 18)));
+      this.titleText.alpha = w < 480 ? 0.85 : 1;
+    }
+    // Scale board for narrow phones so all 5 reels stay readable
+    if (w < 720) {
+      const targetW = 5 * CELL_W + 4 * REEL_GAP + 48;
+      const s = Math.min(1, (w - 16) / targetW);
+      this.board.scale.set(s);
+    } else if (!this.anticipActive) {
+      this.board.scale.set(1);
     }
   }
 
@@ -457,6 +470,8 @@ export class ReelView {
       }
       await this.stopReel(r, grid[r]!, cadence.stopDurationMs[i]!, isAntic);
       this.onReelStop?.(r, grid[r]!);
+      // Micro land spark for premium symbols on this reel
+      void this.flashPremiumLand(r, grid[r]!);
       if (isAntic && opts?.nearMissScatter) {
         const hasSc = grid[r]!.some((s) => s === 'SCATTER' || s === 'SUPERCOIN');
         if (!hasSc) this.onNearMiss?.();
@@ -1059,13 +1074,26 @@ export class ReelView {
             f.g.fill({ color: 0xc9a227, alpha: 0.85 });
             this.fxLayer.addChild(f.g);
           }
-          // Landing ring at end
-          if (local > 0.85) {
+          // Landing ring + dust particles
+          if (local > 0.75) {
+            const a = (local - 0.75) / 0.25;
             const ring = new Graphics();
-            const a = (local - 0.85) / 0.15;
-            ring.circle(f.x1, f.y1, 12 + a * 28);
+            ring.circle(f.x1, f.y1, 12 + a * 32);
             ring.stroke({ color: 0xffe08a, width: 3, alpha: 1 - a });
             this.fxLayer.addChild(ring);
+            // Dust puffs
+            for (let d = 0; d < 5; d++) {
+              const ang = (d / 5) * Math.PI * 2 + local * 3;
+              const dist = 18 + a * 36 + d * 3;
+              const dust = new Graphics();
+              dust.circle(
+                f.x1 + Math.cos(ang) * dist,
+                f.y1 + Math.sin(ang) * dist * 0.55,
+                2 + a * 4,
+              );
+              dust.fill({ color: 0xc9a06a, alpha: 0.55 * (1 - a) });
+              this.fxLayer.addChild(dust);
+            }
           }
         }
         if (t < 1) requestAnimationFrame(tick);
@@ -1096,6 +1124,46 @@ export class ReelView {
   /** Alias for inject/callout board API. */
   pulseLonghornCells(ms = 900): Promise<void> {
     return this.pulseLonghorns(ms);
+  }
+
+  /** Brief gold spark when premium symbols land on a stopped reel. */
+  private async flashPremiumLand(reelIndex: number, symbols: SymbolId[]) {
+    const reel = this.reels[reelIndex];
+    if (!reel) return;
+    const premiumRows: number[] = [];
+    for (let row = 0; row < symbols.length; row++) {
+      if (isPremiumSymbol(String(symbols[row]))) premiumRows.push(row);
+    }
+    if (!premiumRows.length) return;
+    const layer = new Container();
+    this.fxLayer.addChild(layer);
+    const start = performance.now();
+    const ms = 340;
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        layer.removeChildren();
+        for (const row of premiumRows) {
+          const g = new Graphics();
+          const gx = reel.root.x + CELL_W / 2;
+          const gy = reel.root.y + row * CELL_H + CELL_H / 2;
+          const a = 1 - t;
+          g.circle(gx, gy, 10 + t * 30);
+          g.stroke({
+            color: String(symbols[row]) === 'SCATTER' ? 0xffd24a : 0xe8b84a,
+            width: 2.5,
+            alpha: a,
+          });
+          layer.addChild(g);
+        }
+        if (t < 1) requestAnimationFrame(tick);
+        else {
+          layer.destroy({ children: true });
+          resolve();
+        }
+      };
+      requestAnimationFrame(tick);
+    });
   }
 
   async playWinCells(
@@ -1217,15 +1285,44 @@ export class ReelView {
   }
 
   showWinPill(text: string) {
-    if (!this.pillText) return;
+    if (!this.pillText || !this.pillPlate) return;
     this.pillText.text = text;
     this.pillText.visible = true;
-    this.pillText.x = this.app.screen.width / 2;
-    this.pillText.y = this.board.y - (Math.max(...this.heights) * CELL_H) / 2 - 28;
+    this.pillPlate.visible = true;
+    const x = this.app.screen.width / 2;
+    const y = this.board.y - (Math.max(...this.heights) * CELL_H) / 2 - 36;
+    this.pillText.x = x;
+    this.pillText.y = y;
+    const tw = Math.min(
+      this.app.screen.width - 24,
+      Math.max(160, text.length * 9 + 48),
+    );
+    const th = 42;
+    this.pillPlate.clear();
+    this.pillPlate.roundRect(x - tw / 2, y - th / 2, tw, th, 12);
+    this.pillPlate.fill({ color: 0x120c08, alpha: 0.94 });
+    this.pillPlate.stroke({ color: 0xe8b84a, width: 2.5, alpha: 0.98 });
+    // Pop text only (plate stays fixed geometry)
+    this.pillText.scale.set(0.75);
+    const start = performance.now();
+    const anim = () => {
+      if (!this.pillText?.visible) return;
+      const t = Math.min(1, (performance.now() - start) / 260);
+      this.pillText.scale.set(easeOutBack(t));
+      if (t < 1) requestAnimationFrame(anim);
+    };
+    requestAnimationFrame(anim);
   }
 
   hideWinPill() {
-    if (this.pillText) this.pillText.visible = false;
+    if (this.pillText) {
+      this.pillText.visible = false;
+      this.pillText.scale.set(1);
+    }
+    if (this.pillPlate) {
+      this.pillPlate.visible = false;
+      this.pillPlate.clear();
+    }
   }
 
   pulseBoard(pulses = 12) {

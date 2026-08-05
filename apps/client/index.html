@@ -509,6 +509,26 @@
  .fx-splash.wheel {
  background: radial-gradient(circle at 50% 45%, #3a2818ee, #000f);
  }
+ .fx-card-feature {
+ overflow: hidden;
+ padding-top: 0.75rem;
+ }
+ .fx-art-wrap {
+ width: 100%;
+ max-height: 140px;
+ margin: 0 0 0.75rem;
+ border-radius: 12px;
+ overflow: hidden;
+ border: 1px solid #e8b84a55;
+ box-shadow: 0 8px 24px #0008;
+ }
+ .fx-art {
+ width: 100%;
+ height: 140px;
+ object-fit: cover;
+ display: block;
+ filter: saturate(1.05) contrast(1.05);
+ }
  .fx-card {
  text-align: center;
  padding: 1.5rem 2rem;
@@ -671,15 +691,25 @@
  }
  @media (max-width: 640px) {
  footer {
- gap: 0.4rem;
- padding: 0.55rem 0.5rem calc(0.65rem + env(safe-area-inset-bottom, 0));
+ gap: 0.35rem;
+ padding: 0.45rem 0.4rem calc(0.55rem + env(safe-area-inset-bottom, 0));
+ flex-wrap: wrap;
+ justify-content: center;
  }
- button { min-height: 44px; padding: 0.55rem 0.75rem; }
- .btn-spin { min-width: 96px; font-size: 1.2rem; min-height: 48px; }
- #hud { padding: 0.45rem 0.5rem; }
- .meter { min-width: 0; padding: 0.35rem 0.55rem; }
- .meter strong { font-size: 1.1rem; }
- .top-row, .win-row { gap: 0.4rem; flex-wrap: wrap; }
+ button { min-height: 44px; padding: 0.5rem 0.65rem; font-size: 0.85rem; }
+ .btn-spin { min-width: 88px; font-size: 1.15rem; min-height: 48px; flex: 1 1 auto; }
+ #hud { padding: 0.4rem 0.4rem; }
+ .meter { min-width: 0; padding: 0.3rem 0.5rem; flex: 1 1 auto; }
+ .meter strong { font-size: 1.15rem; }
+ .meter label { font-size: 0.6rem; }
+ .top-row, .win-row { gap: 0.35rem; flex-wrap: wrap; }
+ header h1 { font-size: 1.25rem; }
+ .badge { font-size: 0.58rem; padding: 0.15rem 0.4rem; }
+ #admin-link { display: none; }
+ .fx-art-wrap, .fx-art { max-height: 100px; height: 100px; }
+ .fx-title { font-size: 1.55rem !important; }
+ .cele-amount { font-size: 2.4rem !important; }
+ .cele-card { min-width: min(94vw, 360px); padding: 1rem 1.1rem 1.4rem; }
  }
  /* Vegas celebration overlay */
  #celebration-root {
