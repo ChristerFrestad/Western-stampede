@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --import tsx --test src/**/*.test.ts"
+    "test": "node ../../scripts/run-node-tests.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

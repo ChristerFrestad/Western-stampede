@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "test": "node --import tsx --test src/**/*.test.ts"
+    "test": "node ../../scripts/run-node-tests.mjs"
   },
   "dependencies": {
     "@ws/audit-core": "workspace:*",

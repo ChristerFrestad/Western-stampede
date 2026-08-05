@@ -13,7 +13,7 @@
     "verify": "tsx src/sign-lab.ts --verify",
     "verify:drop": "tsx src/verify-drop.ts",
     "report": "tsx src/report-lab.ts",
-    "test": "node --import tsx --test src/**/*.test.ts"
+    "test": "node ../../scripts/run-node-tests.mjs"
   },
 
 

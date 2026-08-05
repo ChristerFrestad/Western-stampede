@@ -69,13 +69,22 @@ function makeDrop(opts: { gatePass?: boolean; sign?: string } = {}) {
   return dir;
 }
 
+/** Isolate from CI LAB_SIGNING_KEY so unsigned fixtures still pass. */
+function cleanEnv(extra: Record<string, string> = {}) {
+  const env = { ...process.env, ...extra };
+  if (!('LAB_SIGNING_KEY' in extra)) {
+    delete env.LAB_SIGNING_KEY;
+  }
+  return env;
+}
+
 describe('verify-drop + report', () => {
   it('passes a well-formed drop', () => {
     const dir = makeDrop();
     const out = execFileSync(
       process.execPath,
       ['--import', 'tsx', verifyScript, dir],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', env: cleanEnv() },
     );
     const parsed = JSON.parse(out);
     assert.equal(parsed.ok, true);
@@ -88,6 +97,7 @@ describe('verify-drop + report', () => {
     try {
       execFileSync(process.execPath, ['--import', 'tsx', verifyScript, dir], {
         encoding: 'utf8',
+        env: cleanEnv(),
       });
     } catch {
       failed = true;
@@ -103,7 +113,7 @@ describe('verify-drop + report', () => {
       ['--import', 'tsx', verifyScript, dir],
       {
         encoding: 'utf8',
-        env: { ...process.env, LAB_SIGNING_KEY: key },
+        env: cleanEnv({ LAB_SIGNING_KEY: key }),
       },
     );
     const parsed = JSON.parse(out);
@@ -116,7 +126,7 @@ describe('verify-drop + report', () => {
     const out = execFileSync(
       process.execPath,
       ['--import', 'tsx', reportScript, dir],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', env: cleanEnv() },
     );
     const parsed = JSON.parse(out);
     assert.equal(parsed.ok, true);
