@@ -15,12 +15,17 @@ import {
 } from './assets';
 import { buildSpinCadence } from './presentation/spin-timing';
 import { buildSpinFiller, nextSpinSymbol } from './presentation/spin-strip';
+import {
+  CELL_W,
+  CELL_H,
+  CELL_PAD,
+  REEL_GAP,
+  REEL_PAD,
+  coverFit,
+  isPremiumSymbol,
+} from './presentation/symbol-fit.js';
 
-/** Cell size inside each reel window. */
-const CELL_W = 118;
-const CELL_H = 96;
-const REEL_GAP = 8;
-const PAD = 4;
+const PAD = REEL_PAD;
 
 /** Extra symbols above the final stop window for the spin strip. */
 const SPIN_FILLER = 40;
@@ -39,9 +44,6 @@ type ReelState = {
   spinning: boolean;
   blur: BlurFilter | null;
 };
-
-const CELL_INNER_W = CELL_W - 10;
-const CELL_INNER_H = CELL_H - 10;
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
@@ -307,9 +309,12 @@ export class ReelView {
       const symbols = grid[r] ?? emptyCol(height);
 
       for (let row = 0; row < height; row++) {
-        const { sprite, frame } = this.makeCell(symbols[row] ?? 'A', row * CELL_H);
+        const { sprite, frame, wrap } = this.makeCell(
+          symbols[row] ?? 'A',
+          row * CELL_H,
+        );
         strip.addChild(frame);
-        strip.addChild(sprite);
+        strip.addChild(wrap);
         cells.push(sprite);
         frames.push(frame);
       }
@@ -336,30 +341,54 @@ export class ReelView {
     this.layoutStage();
   }
 
-  /** Layout sprite in cell without scale hacks (prevents corner-zoom bugs). */
+  /**
+   * Cover-fit: uniform scale, center, fill cell (no stretch).
+   * Cropping handled by per-cell rounded mask on the strip container.
+   */
   private layoutSprite(sprite: Sprite, rowY: number, sym: SymbolId | string) {
-    sprite.texture = tex(sym);
+    const texture = tex(sym);
+    sprite.texture = texture;
     sprite.anchor.set(0);
-    sprite.scale.set(1);
-    sprite.width = CELL_INNER_W;
-    sprite.height = CELL_INNER_H;
-    sprite.x = 5;
-    sprite.y = rowY + 5;
+    const tw = texture.width || 1;
+    const th = texture.height || 1;
+    const fit = coverFit(tw, th);
+    sprite.scale.set(fit.scale);
+    sprite.x = fit.x;
+    sprite.y = rowY + fit.y;
     sprite.alpha = 1;
     sprite.tint = 0xffffff;
     sprite.roundPixels = true;
     (sprite as Sprite & { symbolId?: string }).symbolId = String(sym);
   }
 
-  private makeCell(sym: SymbolId | string, y: number): { sprite: Sprite; frame: Graphics } {
+  private makeCell(
+    sym: SymbolId | string,
+    y: number,
+  ): { sprite: Sprite; frame: Graphics; wrap: Container } {
     const frame = new Graphics();
+    const premium = isPremiumSymbol(String(sym));
     frame.roundRect(2, y + 2, CELL_W - 4, CELL_H - 4, 10);
-    frame.fill({ color: 0x1a120c, alpha: 0.35 });
-    frame.stroke({ color: 0x000000, width: 1, alpha: 0.4 });
+    frame.fill({ color: premium ? 0x1a1408 : 0x1a120c, alpha: premium ? 0.45 : 0.35 });
+    frame.stroke({
+      color: premium ? 0xc9a227 : 0x000000,
+      width: premium ? 2 : 1,
+      alpha: premium ? 0.75 : 0.4,
+    });
+
+    // Clip sprite to rounded cell (cover may overflow)
+    const mask = new Graphics();
+    mask.roundRect(CELL_PAD, y + CELL_PAD, CELL_W - CELL_PAD * 2, CELL_H - CELL_PAD * 2, 8);
+    mask.fill(0xffffff);
 
     const sprite = new Sprite(tex(sym));
     this.layoutSprite(sprite, y, sym);
-    return { sprite, frame };
+    sprite.mask = mask;
+
+    const wrap = new Container();
+    wrap.addChild(mask);
+    wrap.addChild(sprite);
+
+    return { sprite, frame, wrap };
   }
 
   setGrid(grid: SymbolId[][], heights?: number[]) {
@@ -523,9 +552,9 @@ export class ReelView {
     }
 
     for (let i = 0; i < stripSyms.length; i++) {
-      const { sprite, frame } = this.makeCell(stripSyms[i]!, i * CELL_H);
+      const { sprite, frame, wrap } = this.makeCell(stripSyms[i]!, i * CELL_H);
       reel.strip.addChild(frame);
-      reel.strip.addChild(sprite);
+      reel.strip.addChild(wrap);
       reel.cells.push(sprite);
       reel.frames.push(frame);
     }
@@ -649,9 +678,12 @@ export class ReelView {
     reel.cells = [];
     reel.frames = [];
     for (let row = 0; row < reel.height; row++) {
-      const { sprite, frame } = this.makeCell(finalSymbols[row]!, row * CELL_H);
+      const { sprite, frame, wrap } = this.makeCell(
+        finalSymbols[row]!,
+        row * CELL_H,
+      );
       reel.strip.addChild(frame);
-      reel.strip.addChild(sprite);
+      reel.strip.addChild(wrap);
       reel.cells.push(sprite);
       reel.frames.push(frame);
     }
@@ -771,11 +803,17 @@ export class ReelView {
       frame.stroke({ color: 0xffe080, width: 3, alpha: 0.95 });
       this.fxLayer.addChild(frame);
 
+      const plate = new Graphics();
+      plate.roundRect(gx - 32, gy - 20, 64, 40, 10);
+      plate.fill({ color: 0x1a0e04, alpha: 0.9 });
+      plate.stroke({ color: 0xffe080, width: 2.5, alpha: 1 });
+      this.multLayer.addChild(plate);
+
       const label = new Text({
         text: `×${w.mult}`,
         style: {
           fontFamily: 'Bebas Neue, Impact, sans-serif',
-          fontSize: 36,
+          fontSize: 34,
           fill: 0xfff3a0,
           dropShadow: { color: 0x000000, blur: 6, distance: 2, alpha: 0.9 },
         },
@@ -807,20 +845,154 @@ export class ReelView {
       if (!reel) continue;
       const gx = reel.root.x + CELL_W / 2;
       const gy = reel.root.y + w.row * CELL_H + CELL_H / 2;
+
+      // Badge plate so ×N is always readable
+      const plate = new Graphics();
+      plate.roundRect(gx - 28, gy + CELL_H * 0.12, 56, 34, 8);
+      plate.fill({ color: 0x1a0e04, alpha: 0.88 });
+      plate.stroke({ color: 0xffe080, width: 2, alpha: 0.95 });
+      this.multLayer.addChild(plate);
+
       const label = new Text({
         text: `×${w.mult}`,
         style: {
           fontFamily: 'Bebas Neue, Impact, sans-serif',
-          fontSize: 28,
+          fontSize: 30,
           fill: 0xfff3a0,
-          dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.85 },
+          dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
         },
       });
       label.anchor.set(0.5);
       label.x = gx;
-      label.y = gy + CELL_H * 0.28;
+      label.y = gy + CELL_H * 0.3;
       this.multLayer.addChild(label);
     }
+  }
+
+  /**
+   * Longhorns raining into free-game reels (board choreography after Supercoin).
+   * Pure presentation — does not change server state.
+   */
+  async playLonghornInject(count: number, ms = 1600): Promise<void> {
+    const n = Math.min(18, Math.max(4, count));
+    this.fxLayer.removeChildren();
+    const start = performance.now();
+    const flyers: Array<{
+      g: Graphics;
+      x0: number;
+      y0: number;
+      x1: number;
+      y1: number;
+      delay: number;
+      spr: Sprite | null;
+    }> = [];
+
+    for (let i = 0; i < n; i++) {
+      const reel = this.reels[i % 5]!;
+      const row = Math.min(
+        reel.height - 1,
+        Math.floor((i / 5) % Math.max(1, reel.height)),
+      );
+      const x1 = reel.root.x + CELL_W / 2;
+      const y1 = reel.root.y + row * CELL_H + CELL_H / 2;
+      const x0 = (Math.random() - 0.5) * 5 * CELL_W;
+      const y0 = -Math.max(...this.heights) * CELL_H * 0.6 - Math.random() * 80;
+      let spr: Sprite | null = null;
+      try {
+        spr = new Sprite(tex('LONGHORN'));
+        const fit = coverFit(spr.texture.width || 1, spr.texture.height || 1);
+        spr.anchor.set(0.5);
+        spr.scale.set(fit.scale * 0.85);
+        spr.alpha = 0.95;
+      } catch {
+        spr = null;
+      }
+      flyers.push({
+        g: new Graphics(),
+        x0,
+        y0,
+        x1,
+        y1,
+        delay: (i / n) * 0.45,
+        spr,
+      });
+    }
+
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        this.fxLayer.removeChildren();
+        // Board gold pulse
+        const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 4);
+        const maxRows = Math.max(...this.heights);
+        const boardW = 5 * CELL_W + 4 * REEL_GAP;
+        const boardH = maxRows * CELL_H;
+        const plate = new Graphics();
+        plate.roundRect(
+          -boardW / 2 - 12,
+          -boardH / 2 - 12,
+          boardW + 24,
+          boardH + 24,
+          16,
+        );
+        plate.stroke({ color: 0xe8b84a, width: 3, alpha: 0.35 + pulse * 0.4 });
+        this.fxLayer.addChild(plate);
+
+        for (const f of flyers) {
+          const local = Math.min(1, Math.max(0, (t - f.delay) / (1 - f.delay)));
+          if (local <= 0) continue;
+          const ease = 1 - Math.pow(1 - local, 2.4);
+          const x = f.x0 + (f.x1 - f.x0) * ease;
+          const y = f.y0 + (f.y1 - f.y0) * ease;
+          if (f.spr) {
+            f.spr.x = x;
+            f.spr.y = y;
+            f.spr.rotation = (1 - ease) * 0.6;
+            f.spr.alpha = 0.4 + 0.6 * ease;
+            this.fxLayer.addChild(f.spr);
+          } else {
+            f.g.clear();
+            f.g.circle(x, y, 14 + 8 * ease);
+            f.g.fill({ color: 0xc9a227, alpha: 0.85 });
+            this.fxLayer.addChild(f.g);
+          }
+          // Landing ring at end
+          if (local > 0.85) {
+            const ring = new Graphics();
+            const a = (local - 0.85) / 0.15;
+            ring.circle(f.x1, f.y1, 12 + a * 28);
+            ring.stroke({ color: 0xffe08a, width: 3, alpha: 1 - a });
+            this.fxLayer.addChild(ring);
+          }
+        }
+        if (t < 1) requestAnimationFrame(tick);
+        else {
+          this.fxLayer.removeChildren();
+          // Final seal glow on all reels
+          for (const reel of this.reels) {
+            const g = new Graphics();
+            g.roundRect(
+              reel.root.x - 2,
+              reel.root.y - 2,
+              CELL_W + 4,
+              reel.height * CELL_H + 4,
+              10,
+            );
+            g.stroke({ color: 0xe8b84a, width: 2, alpha: 0.85 });
+            this.fxLayer.addChild(g);
+          }
+          resolve();
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+    await sleep(280);
+    this.fxLayer.removeChildren();
+  }
+
+  /** Alias for inject/callout board API. */
+  pulseLonghornCells(ms = 900): Promise<void> {
+    return this.pulseLonghorns(ms);
   }
 
   async playWinCells(

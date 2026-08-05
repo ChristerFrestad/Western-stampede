@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/presentation/spin-timing.test.ts"
+    "test": "node --import tsx --test src/presentation/spin-timing.test.ts src/presentation/symbol-fit.test.ts"
   },
   "dependencies": {
     "@ws/shared": "workspace:*",

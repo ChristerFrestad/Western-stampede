@@ -1,6 +1,17 @@
 import type { SupercoinResult } from '@ws/shared';
 import { audio } from './audio';
 
+/** Optional Pixi board for inject/land choreography (set from main). */
+export type LonghornBoardFx = {
+  playLonghornInject: (count: number, ms?: number) => Promise<void>;
+  pulseLonghornCells?: (ms?: number) => Promise<void>;
+};
+
+let longhornBoard: LonghornBoardFx | null = null;
+export function setLonghornBoard(board: LonghornBoardFx | null) {
+  longhornBoard = board;
+}
+
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
@@ -194,16 +205,17 @@ export async function showSupercoinWheel(
   layer.classList.remove('show');
   layer.innerHTML = '';
 
-  await showLonghornInject(result, { turbo });
+  // board hook set by main via setLonghornBoard
+  await showLonghornInject(result, { turbo, board: longhornBoard });
 }
 
 export async function showLonghornInject(
   result: SupercoinResult,
-  opts?: { turbo?: boolean },
+  opts?: { turbo?: boolean; board?: LonghornBoardFx | null },
 ): Promise<void> {
   const turbo = opts?.turbo ?? false;
   const layer = ensureLayer();
-  const n = Math.min(14, Math.max(5, result.awardedLonghorns));
+  const n = Math.min(10, Math.max(4, result.awardedLonghorns));
   const icons = Array.from({ length: n }, (_, i) => {
     const left = 12 + Math.random() * 76;
     const delay = i * (turbo ? 40 : 70);
@@ -218,7 +230,7 @@ export async function showLonghornInject(
         <div class="fx-kicker">HERD GROWING</div>
         <div class="fx-title">+${result.awardedLonghorns} LONGHORNS</div>
         <div class="fx-sub">Injected into free-game reels · total herd <strong id="inject-total">${result.totalLonghornsInjected - result.awardedLonghorns}</strong></div>
-        <p class="fx-explain">More Longhorns on the strips = more chances to land the premium symbol every free spin.</p>
+        <p class="fx-explain">Watch the reels — Longhorns drop into the free-game strips for every remaining free spin.</p>
         <div class="herd-fly-stage" id="herd-fly-stage">${icons}</div>
       </div>
     </div>
@@ -227,6 +239,14 @@ export async function showLonghornInject(
   showSkipHint(layer);
   audio.longhornLand();
   audio.coin();
+
+  // Parallel: board rain into reels while DOM card counts herd
+  const boardPromise = opts?.board
+    ? opts.board.playLonghornInject(
+        result.awardedLonghorns,
+        turbo ? 900 : 1600,
+      )
+    : Promise.resolve();
 
   const totalEl = document.getElementById('inject-total');
   const from = Math.max(0, result.totalLonghornsInjected - result.awardedLonghorns);
@@ -251,7 +271,10 @@ export async function showLonghornInject(
     window.setTimeout(() => audio.longhornLand(), 80 + i * 120);
   }
 
-  await waitOrSkip(turbo ? 400 : 900, turbo);
+  await Promise.all([
+    waitOrSkip(turbo ? 400 : 900, turbo),
+    boardPromise,
+  ]);
   layer.classList.remove('show');
   layer.innerHTML = '';
 }
@@ -259,10 +282,13 @@ export async function showLonghornInject(
 export async function showLonghornOnGridCallout(
   count: number,
   herd: number,
-  opts?: { turbo?: boolean },
+  opts?: { turbo?: boolean; board?: LonghornBoardFx | null },
 ): Promise<void> {
   if (count <= 0 && herd <= 0) return;
-  if (opts?.turbo) return; // skip callouts in turbo/auto
+  if (opts?.turbo) {
+    await opts.board?.pulseLonghornCells?.(400);
+    return;
+  }
   const layer = ensureLayer();
   layer.innerHTML = `
     <div class="fx-splash callout">
@@ -278,7 +304,10 @@ export async function showLonghornOnGridCallout(
     </div>
   `;
   layer.classList.add('show');
-  await waitOrSkip(1400, false);
+  await Promise.all([
+    waitOrSkip(1400, false),
+    opts?.board?.pulseLonghornCells?.(1200) ?? Promise.resolve(),
+  ]);
   layer.classList.remove('show');
   layer.innerHTML = '';
 }

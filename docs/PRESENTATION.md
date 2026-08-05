@@ -37,11 +37,19 @@ Never jump from first Space straight to idle when tier banners or total remain.
 
 Buy costs and free-game package sizes always come from `GET /game/config` (`buyOptions`) — never hardcode.
 
+## Symbol fit (reel cells)
+
+- Cell: 118×96 outer; art uses **cover-fit** (uniform scale, center, rounded mask). Never stretch.
+- Source art should be **square** masters with subject in the middle ~75% (see `presentation/symbol-fit.ts`).
+- Premium symbols (LONGHORN, WILD, WILD_FG, SCATTER, SUPERCOIN) get a gold cell rim.
+
 ## Win clarity rules
 
 - Only cells listed in `WinDetail.cells` stay bright for that combo.
 - Light-up order is left-to-right by reel index.
-- Wild multipliers that contributed stay visible during that combo’s cycle.
+- Wild multipliers that contributed stay visible during that combo’s cycle (badge plate + ×N).
+- Supercoin → Longhorn inject: DOM card **plus** Pixi board rain into reels (`playLonghornInject`).
+- Longhorns on free grid: pulse spotlight (`pulseLonghorns` / callout).
 - Turbo / autoplay uses a single aggregate pulse.
 
 ## Feature transitions

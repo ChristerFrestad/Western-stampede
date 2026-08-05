@@ -5,6 +5,7 @@ import {
   showFeatureSplash,
   showLonghornOnGridCallout,
   showSupercoinWheel,
+  setLonghornBoard,
 } from './overlays';
 import {
   anticipationReels,
@@ -63,6 +64,7 @@ let balanceCredits = 0;
 let soundUnlocked = false;
 
 const reels = new ReelView(el.canvas);
+setLonghornBoard(reels);
 reels.onSpinStart = () => audio.spinStart();
 reels.onReelStop = (reelIndex, symbols) => audio.reelLandSymbols(reelIndex, symbols);
 reels.onSpinEnd = () => {
@@ -328,9 +330,8 @@ async function presentFeaturesAfterSpin(result: SpinResult, turbo: boolean) {
     await showLonghornOnGridCallout(
       result.features.longhornsOnGrid,
       result.features.longhornHerd,
-      { turbo },
+      { turbo, board: reels },
     );
-    await reels.pulseLonghorns(900);
   }
 
   if (result.features.freeGamesEnded) {
